@@ -139,6 +139,18 @@ def test_column_order_follows_entity_type_then_extras() -> None:
     assert column_order(rows, product, ["ProductName", "ProductID"]) == ["ProductName", "ProductID"]
 
 
+def test_expanded_navigations_stay_visible_with_select() -> None:
+    from app.odata.data_client import expand_names
+
+    assert expand_names("Kunde($select=Name,Region),Produkt") == ["Kunde", "Produkt"]
+    assert expand_names(None) == []
+    m = model("northwind-v4.xml", "https://h.example/odata/")
+    product = next(et for s in m.schemas for et in s.entity_types if et.name == "Product")
+    rows = [{"ProductID": 1, "Category": {"CategoryID": 1}}]
+    assert column_order(rows, product, ["ProductID"], "Category($select=CategoryName)") == ["ProductID", "Category"]
+    assert column_order(rows, product, ["ProductID"], "*")[:2] == ["ProductID", "Category"]
+
+
 def test_next_link_must_stay_on_the_service() -> None:
     m = model("northwind-v4.xml", "https://h.example/odata/")
     assert validate_next_link(m, "Products?$skiptoken=2") == "https://h.example/odata/Products?$skiptoken=2"

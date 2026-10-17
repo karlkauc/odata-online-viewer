@@ -123,7 +123,9 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         notices.append(
             f"The service returned {len(rows)} rows although $top={payload.options.top} was requested."
         )
-    columns = column_order(rows, _entity_type_for(model, payload.entity_set), payload.options.select)
+    columns = column_order(
+        rows, _entity_type_for(model, payload.entity_set), payload.options.select, payload.options.expand
+    )
     emit(
         "data_query",
         source="next" if payload.next_link else "query",

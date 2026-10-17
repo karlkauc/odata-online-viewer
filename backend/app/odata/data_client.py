@@ -277,7 +277,29 @@ def normalise_payload(
     return [{k: v for k, v in payload.items() if not k.startswith("@odata.context")}], None, None
 
 
-def column_order(rows: list[dict[str, Any]], entity_type: EntityType | None, select: list[str]) -> list[str]:
+def expand_names(expand: str | None) -> list[str]:
+    """Top-level navigation names of an ``$expand`` value: ``Kunde($select=Name),Produkt`` → ``[Kunde, Produkt]``."""
+    if not expand:
+        return []
+    names, depth, current = [], 0, ""
+    for ch in expand:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            names.append(current)
+            current = ""
+            continue
+        if depth == 0 and ch not in "()":
+            current += ch
+    names.append(current)
+    return [n.strip().split("/")[0] for n in names if n.strip() and n.strip() != "*"]
+
+
+def column_order(
+    rows: list[dict[str, Any]], entity_type: EntityType | None, select: list[str], expand: str | None = None
+) -> list[str]:
     """Columns: the selected properties, else the entity type's declared order,
     then whatever else the rows carry (open types, expands, annotations)."""
     seen: list[str] = []
@@ -297,8 +319,13 @@ def column_order(rows: list[dict[str, Any]], entity_type: EntityType | None, sel
             if key.startswith("@odata.") or key.startswith("__"):
                 continue
             add(key)
+    expanded = expand_names(expand)
+    if expand and expand.strip() == "*" and entity_type is not None:
+        expanded = [n.name for n in entity_type.navigation_properties]
+    for name in expanded:
+        add(name)
     if select:
-        return [c for c in seen if c in select]
+        return [c for c in seen if c in select or c in expanded]
     return [c for c in seen if any(c in row for row in rows)] or seen
 
 
