@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Editors / OS
+.DS_Store
+._*
+.idea/
+.vscode/
+
+# GeoLite2 database, downloaded by scripts/deploy.sh (MaxMind EULA: not committed)
+backend/geoip/*.mmdb
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Demo-recording intermediates (the final docs/media/*.gif is committed)
+docs/media/_raw/
+e2e/test-results/
+e2e/playwright-report/
+
+# Playwright
+e2e/node_modules/

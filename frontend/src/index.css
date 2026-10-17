@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  /* iOS Safari zooms the page when a focused field is under 16px. */
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 touch:py-2.5 rounded-md text-sm font-medium
+           border border-slate-300 dark:border-slate-700
+           bg-white dark:bg-slate-800
+           hover:bg-slate-50 dark:hover:bg-slate-700
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-accent
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white border-accent hover:bg-blue-600
+           dark:bg-accent-dark dark:border-accent-dark dark:text-slate-950
+           dark:hover:bg-blue-400;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded text-[0.7rem] font-medium uppercase tracking-wide;
+  }
+}
+
+/* React Flow */
+.react-flow__node {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.react-flow__edge-textbg {
+  rx: 3px;
+}
+
+/* Canvas pan must win over page scroll on touch screens. */
+.react-flow__pane {
+  touch-action: none;
+}
+
+/* Stock controls are 26px squares; grow them to a comfortable tap size. */
+@media (pointer: coarse) {
+  .react-flow__controls-button {
+    width: 40px;
+    height: 40px;
+  }
+  .react-flow__controls-button svg {
+    max-width: 18px;
+    max-height: 18px;
+  }
+}
+
+.dark .react-flow__controls-button {
+  background: #1e293b;
+  border-bottom-color: #334155;
+  fill: #e2e8f0;
+}
+.dark .react-flow__controls-button:hover {
+  background: #334155;
+}
+
+/* CodeMirror: the targeted source line */
+.cm-src-highlight {
+  background: rgba(59, 130, 246, 0.18);
+}
+.dark .cm-src-highlight {
+  background: rgba(96, 165, 250, 0.22);
+}
+.cm-editor {
+  height: 100%;
+  font-size: 12px;
+}

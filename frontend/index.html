@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      Title, description, canonical and og:* are per-route placeholders: the
+      backend (backend/app/spa.py, render_shell) rewrites them for each client
+      route before serving the shell. Keep the attribute order as-is.
+    -->
+    <title>Online OData Viewer — visualize $metadata, explore entity sets</title>
+    <meta
+      name="description"
+      content="Free online OData visualizer: load an OData service URL or its $metadata (V2, V3, V4) and explore entity sets, entity types, properties and relationships as a tree, entity-relationship diagram or source. Query entity sets live, with Basic Auth if needed."
+    />
+    <link rel="canonical" href="https://www.odata-viewer.online/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Online OData Viewer" />
+    <meta property="og:title" content="Online OData Viewer" />
+    <meta
+      property="og:description"
+      content="Free online OData visualizer: load an OData service URL or its $metadata (V2, V3, V4) and explore entity sets, entity types, properties and relationships as a tree, entity-relationship diagram or source. Query entity sets live, with Basic Auth if needed."
+    />
+    <meta property="og:url" content="https://www.odata-viewer.online/" />
+    <meta property="og:image" content="https://www.odata-viewer.online/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Online OData Viewer — tree, entity-relationship diagram and data explorer for an OData service" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- Not executed by the browser, so the CSP (script-src 'self') does not apply. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Online OData Viewer",
+        "url": "https://www.odata-viewer.online/",
+        "description": "Free online OData visualizer: load an OData service URL or its $metadata (V2, V3, V4) and explore entity sets, entity types, properties and relationships as a tree, entity-relationship diagram or source. Query entity sets live, with Basic Auth if needed.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "featureList": [
+          "Reads OData V2, V3 and V4 $metadata (EDMX XML and CSDL JSON)",
+          "Tree of schemas, entity containers, entity sets, entity types, properties and navigations",
+          "Entity-relationship diagram with multiplicities, inheritance and complex types",
+          "Syntax-highlighted $metadata source with jump-to-definition",
+          "Data explorer: query entity sets with $filter, $select, $orderby, $top, $skip and $count",
+          "Basic Auth pass-through for protected services, credentials never stored",
+          "Exports: PNG, SVG, Markdown documentation, Mermaid ER diagram",
+          "Built-in samples: Northwind (V2/V4), TripPin, OData.org demo"
+        ],
+        "screenshot": "https://www.odata-viewer.online/og-image.png",
+        "isRelatedTo": [
+          { "@type": "WebApplication", "name": "Online XSD Viewer", "url": "https://www.xsd-viewer.online/" },
+          { "@type": "WebApplication", "name": "XML Online Viewer", "url": "https://www.xml-viewer.online/" }
+        ],
+        "license": "https://github.com/karlkauc/odata-online-viewer/blob/main/LICENSE"
+      }
+    </script>
+    <script src="/theme-init.js"></script>
+  </head>
+  <body class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <!--
+      Static landing content: crawlers that do not execute JavaScript (and
+      Google's first, non-rendered pass) still see real text. React replaces
+      it on mount.
+    -->
+    <div id="root">
+      <main class="max-w-2xl mx-auto px-6 py-16 font-sans">
+        <h1 class="text-2xl font-semibold">Online OData Viewer</h1>
+        <p class="mt-4">
+          Free online OData visualizer. Enter the URL of an OData service, paste its
+          <code>$metadata</code> document or upload the EDMX/CSDL file, and explore the service
+          as an expandable tree, an entity-relationship diagram or syntax-highlighted source —
+          entity sets, entity types, keys, properties, navigation properties with multiplicities,
+          complex and enum types, functions and actions. OData V2, V3, V4 and V4.01 (XML and JSON)
+          are supported.
+        </p>
+        <p class="mt-4">
+          The data explorer queries entity sets of the live service with <code>$filter</code>,
+          <code>$select</code>, <code>$orderby</code>, <code>$top</code>, <code>$skip</code> and
+          <code>$count</code>, follows next links and shows the exact request URL — also for
+          services behind HTTP Basic authentication; credentials are forwarded per request and
+          never stored. <a class="underline" href="/samples">Sample services</a> such as Northwind
+          and TripPin are built in.
+        </p>
+        <p class="mt-4">
+          Sister tools by the same author:
+          <a class="underline" href="https://www.xsd-viewer.online/">Online XSD Viewer</a> and
+          <a class="underline" href="https://www.xml-viewer.online/">XML Online Viewer</a>.
+        </p>
+        <noscript>
+          <p class="mt-4">Please enable JavaScript to use the viewer.</p>
+        </noscript>
+      </main>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

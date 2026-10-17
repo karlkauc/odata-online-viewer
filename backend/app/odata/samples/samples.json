@@ -1,0 +1,52 @@
+[
+  {
+    "id": "northwind-v4",
+    "name": "Northwind (OData V4)",
+    "description": "The classic Northwind trading database: customers, orders, products and suppliers as an OData V4 service.",
+    "odata_version": "4.0",
+    "service_url": "https://services.odata.org/V4/Northwind/Northwind.svc/",
+    "file": "northwind-v4.xml",
+    "data": true,
+    "auth": false
+  },
+  {
+    "id": "trippin-v4",
+    "name": "TripPin (OData V4, RESTier)",
+    "description": "OASIS' reference service with people, trips, airlines and airports: enum types, complex types, bound functions and actions.",
+    "odata_version": "4.0",
+    "service_url": "https://services.odata.org/TripPinRESTierService/",
+    "file": "trippin-v4.xml",
+    "data": true,
+    "auth": false
+  },
+  {
+    "id": "northwind-v2",
+    "name": "Northwind (OData V2)",
+    "description": "The same Northwind model as an OData V2 service: associations, association sets and function imports.",
+    "odata_version": "2.0",
+    "service_url": "https://services.odata.org/V2/Northwind/Northwind.svc/",
+    "file": "northwind-v2.xml",
+    "data": true,
+    "auth": false
+  },
+  {
+    "id": "odata-v2-demo",
+    "name": "OData.org demo (V2)",
+    "description": "Small products/categories/suppliers demo with a complex Address type and a function import.",
+    "odata_version": "2.0",
+    "service_url": "https://services.odata.org/V2/OData/OData.svc/",
+    "file": "odata-v2-sample.xml",
+    "data": true,
+    "auth": false
+  },
+  {
+    "id": "jdbcodata-demo",
+    "name": "JdbcOdata demo: sales (V4)",
+    "description": "SQL queries published as OData V4 feeds by JdbcOdata — customers, products and revenue per month from a PostgreSQL database.",
+    "odata_version": "4.0",
+    "service_url": "https://odata.status20.net/odata/",
+    "file": "jdbcodata-demo.xml",
+    "data": true,
+    "auth": false
+  }
+]

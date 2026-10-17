@@ -1,0 +1,16 @@
+{
+  "name": "odata-online-viewer-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright end-to-end tests (phone/tablet layout). Desktop, phone and tablet projects.",
+  "scripts": {
+    "test": "playwright test",
+    "test:mobile": "playwright test --project=phone --project=tablet",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.0",
+    "@types/node": "^22.10.0",
+    "playwright": "^1.59.0"
+  }
+}
