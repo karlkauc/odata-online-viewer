@@ -278,7 +278,10 @@ def normalise_payload(
 
 
 def expand_names(expand: str | None) -> list[str]:
-    """Top-level navigation names of an ``$expand`` value: ``Kunde($select=Name),Produkt`` → ``[Kunde, Produkt]``."""
+    """Top-level navigation names of an ``$expand`` value.
+
+    ``Kunde($select=Name),Produkt`` → ``[Kunde, Produkt]``.
+    """
     if not expand:
         return []
     names, depth, current = [], 0, ""
