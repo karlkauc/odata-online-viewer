@@ -31,6 +31,10 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
     `/Date(ms)/`, strips `__metadata`, turns `__deferred` into `{"@link": uri}`. `$top ≤ 500`.
     Next links must stay on the service (`same_service`).
   - `exports.py` — Markdown docs and Mermaid `erDiagram`.
+  - `xlsx_export.py` — Excel export of the data explorer (`POST /data/export`, scope `page`
+    posts the shown rows, scope `all` pages through the set: next links within one `$top=500`
+    request, then `$skip`; `DATA_EXPORT_MAX_ROWS` 50k, `DATA_EXPORT_DEADLINE_SECONDS` 90 below
+    Cloud Run's 120 s). Cells typed from the model's Edm types; strings never become formulas.
   - `samples/` — bundled `$metadata` snapshots + `samples.json` (live URL per sample; the
     loader tries live first so the data explorer works, falls back to the snapshot with a notice).
 - `backend/app/api/` — `metadata.py` (url/text/upload, source, exports; `StoredMetadata` in
@@ -62,7 +66,9 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   `$metadata` URL without query or file name, `target_namespace` = first schema namespace,
   `element_count` = entity types, `type_count` = complex+enum, `odata_version`), `data_query`
   (source query|next|raw, `schema_name` = service root, `target_namespace` = entity set,
-  `element_count` = rows), `export` (source markdown|mermaid|source). Never URLs with
+  `element_count` = rows), `export` (source markdown|mermaid|source; `xlsx_page`|`xlsx_all`
+  with `schema_name` = service root, `target_namespace` = entity set, `element_count` = rows).
+  Never URLs with
   credentials, never document content. Column `odata_version` is new compared to the siblings
   (`backend/sql/usage_stats.sql`). Feedback columns: `service_name`, `entity_name`.
 

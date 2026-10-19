@@ -34,6 +34,8 @@ class Settings:
     feedback_db_password: str
     data_timeout_seconds: float
     data_max_response_mb: int
+    data_export_max_rows: int
+    data_export_deadline_seconds: float
     site_origin: str
 
     @property
@@ -109,6 +111,9 @@ def load_settings() -> Settings:
         # Data explorer: one page of an entity set per request.
         data_timeout_seconds=float(os.getenv("DATA_TIMEOUT_SECONDS", "30")),
         data_max_response_mb=int(os.getenv("DATA_MAX_RESPONSE_MB", "5")),
+        # Excel export of all rows: pages through the set; stay below Cloud Run's 120 s timeout.
+        data_export_max_rows=int(os.getenv("DATA_EXPORT_MAX_ROWS", "50000")),
+        data_export_deadline_seconds=float(os.getenv("DATA_EXPORT_DEADLINE_SECONDS", "90")),
         # Canonical origin written into the SPA shell (title/canonical/og:url per route).
         site_origin=os.getenv("SITE_ORIGIN", "https://www.odata-viewer.online").rstrip("/"),
     )

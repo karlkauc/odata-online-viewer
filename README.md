@@ -22,6 +22,8 @@ Sister tools by the same author: [Online XSD Viewer](https://www.xsd-viewer.onli
 - **Data explorer** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, `$expand`,
   `$search`, custom parameters, paging via next links; V2 answers are normalised (dates,
   `__deferred`, `__count`). The exact request URL is shown for reuse in Excel / Power BI / curl.
+  **Excel export** of the shown page or of all matching rows (paged through by the backend, up
+  to 50,000 rows), with numbers and dates typed from the model and a sheet describing the query.
 - **Exports** — Markdown documentation, Mermaid `erDiagram`, the source document.
 - **Shareable links** — `?url=…` loads a public service on arrival, `#/id/…?view=…` restores the
   selection and view.
@@ -60,7 +62,8 @@ docker compose up --build                             # full image at http://127
 ```
 
 Configuration is by environment variable (see `backend/app/config.py`): upload and fetch limits,
-`DATA_TIMEOUT_SECONDS` / `DATA_MAX_RESPONSE_MB` for the data explorer, `ALLOWED_SCHEMA_HOSTS`
+`DATA_TIMEOUT_SECONDS` / `DATA_MAX_RESPONSE_MB` for the data explorer,
+`DATA_EXPORT_MAX_ROWS` / `DATA_EXPORT_DEADLINE_SECONDS` for the Excel export, `ALLOWED_SCHEMA_HOSTS`
 to lock the URL loader down to a host allow-list, `SITE_ORIGIN` for canonical URLs,
 `USAGE_DB_URL` & co. for statistics (off by default).
 

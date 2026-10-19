@@ -27,13 +27,13 @@ One row per event in table `usage_event` (DDL: `backend/sql/usage_stats.sql`):
 | `user_agent`, `device` | UA string (≤255) and a cheap classification `desktop`/`mobile`/`bot`/`unknown` |
 | `referrer` | `scheme://host/path` of the `Referer` header, query dropped |
 | `path` | page_view only — SPA path served. Only routes in `ROUTE_META` (`backend/app/spa.py`: `/`, `/samples`, `/about`) and the `/go/*` redirects produce a row; scanner paths get a 404 without an event |
-| `source` | `metadata_load`: `upload`/`text`/`url`/`sample`; `data_query`: `query` (one page), `next` (a next link), `raw` (free resource path); `export`: `markdown`/`mermaid`/`source` |
-| `schema_name` | `metadata_load`/`export`: the requested `$metadata` URL without query (never a redirect's session segment, never credentials) or the file **basename**; `data_query`: the service root |
-| `target_namespace` | `metadata_load`: first schema namespace; `data_query`: entity set / resource path |
+| `source` | `metadata_load`: `upload`/`text`/`url`/`sample`; `data_query`: `query` (one page), `next` (a next link), `raw` (free resource path); `export`: `markdown`/`mermaid`/`source`, `xlsx_page`/`xlsx_all` (data explorer Excel export) |
+| `schema_name` | `metadata_load`/`export`: the requested `$metadata` URL without query (never a redirect's session segment, never credentials) or the file **basename**; `data_query` and the `xlsx_*` exports: the service root |
+| `target_namespace` | `metadata_load`: first schema namespace; `data_query`, `xlsx_*` exports: entity set |
 | `odata_version` | `2.0`, `3.0`, `4.0` or `4.01` (metadata_load, data_query) — column added for this app |
 | `input_bytes` | size of the parsed metadata document |
 | `file_count` | `metadata_load`: 1 |
-| `element_count` | `metadata_load`: entity types; `data_query`: rows returned |
+| `element_count` | `metadata_load`: entity types; `data_query`: rows returned; `xlsx_*` exports: rows written |
 | `type_count` | `metadata_load`: complex + enum types |
 | `duration_ms`, `status`, `status_code`, `error_detail` | timing and outcome (`ok`/`parse_error`/`rejected`/`error`/`http_<status>`); `error_detail` is the exception message, ≤255 chars |
 | `diagnostic_count`, `error_count` | always NULL here (kept for column parity with the XSD/XML viewers) |

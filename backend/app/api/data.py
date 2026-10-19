@@ -8,9 +8,12 @@ given, and normalises V2/V4 answers into one table shape.
 from __future__ import annotations
 
 import time
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.api._common import _ms
@@ -30,7 +33,8 @@ from app.odata.data_client import (
 )
 from app.odata.model import ServiceModel
 from app.odata.service_url import join_service_path
-from app.rate_limit import DATA_LIMIT, limiter
+from app.odata.xlsx_export import XLSX_MEDIA_TYPE, collect_rows, property_types, to_xlsx
+from app.rate_limit import DATA_EXPORT_LIMIT, DATA_LIMIT, limiter
 from app.usage.context import emit
 from app.usage.events import schema_display_name
 
@@ -49,6 +53,17 @@ class RawPayload(BaseModel):
     metadata_id: str = Field(..., min_length=8, max_length=64)
     path_and_query: str = Field(..., min_length=1, max_length=4096)
     auth: AuthPayload | None = None
+
+
+class ExportPayload(BaseModel):
+    metadata_id: str = Field(..., min_length=8, max_length=64)
+    entity_set: str = Field(..., min_length=1, max_length=512, description="Entity set name or resource path")
+    scope: Literal["page", "all"]
+    options: QueryOptions = Field(default_factory=QueryOptions)
+    auth: AuthPayload | None = None
+    columns: list[str] | None = Field(default=None, max_length=1000)
+    """``scope="page"``: the table the browser shows (also drill-downs that have no URL)."""
+    rows: list[dict[str, Any]] | None = Field(default=None, max_length=5000)
 
 
 class QueryResponse(BaseModel):
@@ -138,6 +153,101 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         next_link=next_link,
         duration_ms=_ms(started),
         notices=notices,
+    )
+
+
+def _export_filename(entity_set: str) -> str:
+    base = "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in entity_set)[:60].strip("-")
+    return f"{base or 'data'}-{datetime.now(UTC):%Y%m%d-%H%M}.xlsx"
+
+
+@router.post("/data/export")
+@limiter.limit(DATA_EXPORT_LIMIT)
+async def export_entity_set(request: Request, payload: ExportPayload) -> Response:
+    """The shown page or every matching row as an Excel workbook."""
+    model = get_stored(payload.metadata_id).model
+    started = time.perf_counter()
+    source = f"xlsx_{payload.scope}"
+    notices: list[str] = []
+    truncated = False
+    count: int | None = None
+    request_url: str | None = None
+    if payload.scope == "page":
+        if payload.rows is None or payload.columns is None:
+            raise HTTPException(status_code=422, detail="A page export needs columns and rows.")
+        rows, columns = payload.rows, payload.columns
+    else:
+        try:
+            collected = await run_in_threadpool(
+                collect_rows,
+                model,
+                payload.entity_set,
+                payload.options,
+                payload.auth,
+                max_rows=settings.data_export_max_rows,
+                deadline_seconds=settings.data_export_deadline_seconds,
+                timeout=settings.data_timeout_seconds,
+                max_bytes=settings.data_max_response_bytes,
+                fetch=fetch_json,
+            )
+        except DataError as exc:
+            emit(
+                "export",
+                source=source,
+                schema_name=_host(model),
+                target_namespace=_set_name(payload.entity_set),
+                duration_ms=_ms(started),
+                status="error",
+                status_code=exc.upstream_status or exc.status_code,
+                error_detail=str(exc),
+                odata_version=model.odata_version,
+            )
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        rows, count, request_url = collected.rows, collected.count, collected.request_url
+        truncated, notices = collected.truncated, collected.notices
+        target = resolve_path(model, payload.entity_set)
+        columns = column_order(rows, target.type, payload.options.select, payload.options.expand)
+    options = payload.options
+    info: list[tuple[str, Any]] = [
+        ("Service", model.service_root),
+        ("Resource path", payload.entity_set),
+        ("Scope", "Shown page" if payload.scope == "page" else "All matching rows"),
+        ("$filter", options.filter),
+        ("$orderby", options.orderby),
+        ("$select", ",".join(options.select) or None),
+        ("$expand", options.expand),
+        ("$search", options.search),
+        ("Custom parameters", options.extra),
+        ("First request", request_url),
+        ("Rows exported", len(rows)),
+        ("Total count", count),
+        ("Complete", "no" if truncated else "yes"),
+        *[("Notice", n) for n in notices],
+        ("Exported at (UTC)", f"{datetime.now(UTC):%Y-%m-%d %H:%M:%S}"),
+        ("Dates", "Date/time values are converted to UTC."),
+    ]
+    body = await run_in_threadpool(
+        to_xlsx, columns, rows, types=property_types(model, payload.entity_set), info=info
+    )
+    emit(
+        "export",
+        source=source,
+        schema_name=_host(model),
+        target_namespace=_set_name(payload.entity_set),
+        element_count=len(rows),
+        duration_ms=_ms(started),
+        status="ok",
+        status_code=200,
+        odata_version=model.odata_version,
+    )
+    return Response(
+        content=body,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{_export_filename(payload.entity_set)}"',
+            "X-Export-Rows": str(len(rows)),
+            "X-Export-Truncated": "1" if truncated else "0",
+        },
     )
 
 

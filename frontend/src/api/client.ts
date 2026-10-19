@@ -17,19 +17,21 @@ export class ApiError extends Error {
   }
 }
 
-async function handle<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-      else if (Array.isArray(body?.detail) && body.detail[0]?.msg) detail = String(body.detail[0].msg);
-      else if (typeof body?.error === "string") detail = body.error;
-    } catch {
-      // ignore parse errors; fall back to status
-    }
-    throw new ApiError(detail, response.status);
+async function failure(response: Response): Promise<ApiError> {
+  let detail = `HTTP ${response.status}`;
+  try {
+    const body = await response.json();
+    if (typeof body?.detail === "string") detail = body.detail;
+    else if (Array.isArray(body?.detail) && body.detail[0]?.msg) detail = String(body.detail[0].msg);
+    else if (typeof body?.error === "string") detail = body.error;
+  } catch {
+    // ignore parse errors; fall back to status
   }
+  return new ApiError(detail, response.status);
+}
+
+async function handle<T>(response: Response): Promise<T> {
+  if (!response.ok) throw await failure(response);
   return (await response.json()) as T;
 }
 
@@ -135,24 +137,22 @@ export async function downloadExport(
 ): Promise<void> {
   const blob = await withReload(async () => {
     const response = await fetch(exportUrl(metadataId, format));
-    if (!response.ok) {
-      let detail = `HTTP ${response.status}`;
-      try {
-        const body = await response.json();
-        if (typeof body?.detail === "string") detail = body.detail;
-      } catch {
-        // ignore
-      }
-      throw new ApiError(detail, response.status);
-    }
-    const disposition = response.headers.get("content-disposition") ?? "";
-    const match = /filename="([^"]+)"/.exec(disposition);
-    return { data: await response.blob(), filename: match?.[1] ?? `metadata.${format === "markdown" ? "md" : format}` };
+    if (!response.ok) throw await failure(response);
+    return { data: await response.blob(), filename: attachmentName(response) ?? `metadata.${format === "markdown" ? "md" : format}` };
   });
-  const href = URL.createObjectURL(blob.data);
+  saveBlob(blob.data, blob.filename);
+}
+
+function attachmentName(response: Response): string | undefined {
+  const disposition = response.headers.get("content-disposition") ?? "";
+  return /filename="([^"]+)"/.exec(disposition)?.[1];
+}
+
+function saveBlob(data: Blob, filename: string): void {
+  const href = URL.createObjectURL(data);
   const anchor = document.createElement("a");
   anchor.href = href;
-  anchor.download = blob.filename;
+  anchor.download = filename;
   anchor.rel = "noopener";
   document.body.appendChild(anchor);
   anchor.click();
@@ -185,6 +185,48 @@ export async function queryEntitySet(
       auth: auth ?? undefined,
     }),
   );
+}
+
+export interface ExportTable {
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
+
+/**
+ * Download the shown page (`table`) or every matching row as .xlsx.
+ * Returns how many rows went into the file and whether the server stopped early.
+ */
+export async function exportEntitySet(
+  metadataId: string,
+  entitySet: string,
+  options: QueryOptions,
+  auth: Auth | null,
+  table?: ExportTable,
+): Promise<{ rows: number; truncated: boolean }> {
+  const file = await withReload(async () => {
+    const response = await fetch(`${API_BASE}/data/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        metadata_id: metadataId,
+        entity_set: entitySet,
+        scope: table ? "page" : "all",
+        options,
+        auth: auth ?? undefined,
+        columns: table?.columns,
+        rows: table?.rows,
+      }),
+    });
+    if (!response.ok) throw await failure(response);
+    return {
+      data: await response.blob(),
+      filename: attachmentName(response) ?? "data.xlsx",
+      rows: Number(response.headers.get("x-export-rows") ?? 0),
+      truncated: response.headers.get("x-export-truncated") === "1",
+    };
+  });
+  saveBlob(file.data, file.filename);
+  return { rows: file.rows, truncated: file.truncated };
 }
 
 export async function rawRequest(metadataId: string, pathAndQuery: string, auth: Auth | null): Promise<RawResponse> {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { ApiError, queryEntitySet } from "../../api/client";
+import { ApiError, exportEntitySet, queryEntitySet } from "../../api/client";
 import { drillPath, localResult, resolvePath } from "../../lib/drillPath";
 import { effectiveMembers, shortType } from "../../lib/modelIndex";
 import { useCopy } from "../../lib/useCopy";
@@ -90,6 +90,40 @@ function SelectPicker({ fields, selected, onChange }: { fields: { name: string; 
   );
 }
 
+function ExportMenu({ rows, all, busy, onExport }: { rows: number; all: boolean; busy: boolean; onExport: (scope: "page" | "all") => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useDismiss(ref, open, useCallback(() => setOpen(false), []));
+  const pick = (scope: "page" | "all") => {
+    setOpen(false);
+    onExport(scope);
+  };
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" className="btn text-xs py-0.5" disabled={busy} onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
+        {busy ? "Exporting…" : "Excel ▾"}
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1 text-xs">
+          <button type="button" role="menuitem" className="block w-full text-left px-2 py-1.5 touch:py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700" onClick={() => pick("page")}>
+            This page <span className="text-slate-500">({rows.toLocaleString()} row{rows === 1 ? "" : "s"})</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full text-left px-2 py-1.5 touch:py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-transparent"
+            disabled={!all}
+            title={all ? "Pages through the service with the current $filter, $orderby, $select and $expand" : "Drill-down values have no query to repeat"}
+            onClick={() => pick("all")}
+          >
+            All matching rows <span className="text-slate-500">(up to 50,000)</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DataExplorer() {
   const model = useApp((s) => s.model);
   const index = useApp((s) => s.index);
@@ -102,9 +136,12 @@ export function DataExplorer() {
   const { copied, copy } = useCopy();
   const [draft, setDraft] = useState<QueryOptions>(data.options);
   const [needAuth, setNeedAuth] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<{ text: string; error: boolean } | null>(null);
   const [credentials, setCredentials] = useState<Auth>({ username: auth?.username ?? "", password: auth?.password ?? "" });
 
   useEffect(() => setDraft(data.options), [data.options, data.entitySet]);
+  useEffect(() => setExportNote(null), [data.result]);
 
   const v4 = model?.odata_version.startsWith("4") ?? true;
   const sets = index?.entitySets ?? [];
@@ -182,6 +219,21 @@ export function DataExplorer() {
   };
 
   const drillable = (value: Cell | undefined) => value !== null && typeof value === "object";
+
+  const exportRows = async (scope: "page" | "all") => {
+    if (!model || !data.entitySet || !data.result) return;
+    setExporting(true);
+    setExportNote(null);
+    try {
+      const table = scope === "page" ? { columns: data.result.columns, rows: data.result.rows } : undefined;
+      const done = await exportEntitySet(model.metadata_id, data.entitySet, data.options, auth, table);
+      if (done.truncated) setExportNote({ text: `The export stopped at ${done.rows.toLocaleString()} rows — narrow the $filter to get the rest (see the "Query" sheet).`, error: false });
+    } catch (err) {
+      setExportNote({ text: `Excel export failed: ${err instanceof ApiError ? err.message : String(err)}`, error: true });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const nextPage = () => {
     if (!data.result) return;
@@ -391,6 +443,7 @@ export function DataExplorer() {
             </button>
           </span>
           <span className="flex items-center gap-1 ml-auto">
+            {result.rows.length > 0 && <ExportMenu rows={result.rows.length} all={!data.local} busy={exporting || data.loading} onExport={(scope) => void exportRows(scope)} />}
             <button type="button" className="btn text-xs py-0.5" onClick={() => setData({ rawView: !data.rawView })} aria-pressed={data.rawView}>
               {data.rawView ? "Table" : "JSON"}
             </button>
@@ -406,6 +459,11 @@ export function DataExplorer() {
               Next ›
             </button>
           </span>
+          {exportNote && (
+            <span className={clsx("basis-full", exportNote.error ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400")} role={exportNote.error ? "alert" : undefined}>
+              {exportNote.text}
+            </span>
+          )}
           {result.notices.map((n) => (
             <span key={n} className="basis-full text-amber-700 dark:text-amber-400">
               {n}

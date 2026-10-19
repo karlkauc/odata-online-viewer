@@ -17,6 +17,8 @@ WRITE_LIMIT = "30/minute"
 READ_LIMIT = "60/minute"
 # Each data request is a request to a third-party service on the visitor's behalf.
 DATA_LIMIT = "60/minute"
+# An "all rows" export can make a hundred upstream requests.
+DATA_EXPORT_LIMIT = "10/minute"
 
 limiter = Limiter(
     key_func=get_remote_address,

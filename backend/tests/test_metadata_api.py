@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import json
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
 
+import openpyxl
 import pytest
 from fastapi.testclient import TestClient
 
@@ -424,3 +426,81 @@ def test_data_next_link_must_be_on_the_service(client: TestClient, fetch: FakeFe
         },
     )
     assert r.status_code == 400 and "outside" in r.json()["detail"]
+
+
+# --- Excel export -----------------------------------------------------------
+
+
+def test_data_export_page(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:
+    metadata_id = _loaded_v4(client, fetch)
+    calls = len(fetch.calls)
+    r = client.post(
+        "/api/data/export",
+        json={
+            "metadata_id": metadata_id,
+            "entity_set": "Products",
+            "scope": "page",
+            "columns": ["ProductID", "UnitPrice"],
+            "rows": [{"ProductID": 1, "UnitPrice": "18.00"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+    assert r.headers["x-export-rows"] == "1" and r.headers["x-export-truncated"] == "0"
+    assert 'filename="Products-' in r.headers["content-disposition"]
+    assert len(fetch.calls) == calls, "a page export must not ask the service again"
+    rows = list(openpyxl.load_workbook(io.BytesIO(r.content))["Data"].iter_rows(values_only=True))
+    assert rows == [("ProductID", "UnitPrice"), (1, 18)]
+    ev = recorder.events[-1]
+    assert (ev.event_type, ev.source, ev.element_count, ev.target_namespace) == ("export", "xlsx_page", 1, "Products")
+
+
+def test_data_export_page_needs_rows(client: TestClient, fetch: FakeFetch) -> None:
+    metadata_id = _loaded_v4(client, fetch)
+    r = client.post("/api/data/export", json={"metadata_id": metadata_id, "entity_set": "Products", "scope": "page"})
+    assert r.status_code == 422
+
+
+def test_data_export_all(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:
+    metadata_id = _loaded_v4(client, fetch)
+    root = "https://services.odata.org/V4/Northwind/Northwind.svc/"
+    fetch.responses[f"{root}Products?$skiptoken"] = FetchedResource(
+        url="…", content=json.dumps({"value": [{"ProductID": 2}]}).encode(), content_type="application/json"
+    )
+    fetch.responses[f"{root}Products?"] = FetchedResource(
+        url="…",
+        content=json.dumps({"value": [{"ProductID": 1}], "@odata.nextLink": f"{root}Products?$skiptoken=1"}).encode(),
+        content_type="application/json",
+    )
+    r = client.post(
+        "/api/data/export",
+        json={
+            "metadata_id": metadata_id,
+            "entity_set": "Products",
+            "scope": "all",
+            "options": {"select": ["ProductID"]},
+            "auth": {"username": "u", "password": "p"},
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.headers["x-export-rows"] == "2"
+    wb = openpyxl.load_workbook(io.BytesIO(r.content))
+    assert list(wb["Data"].iter_rows(values_only=True)) == [("ProductID",), (1,), (2,)]
+    query = dict(wb["Query"].iter_rows(values_only=True))
+    assert query["$select"] == "ProductID" and query["Complete"] == "yes"
+    assert all(h["Authorization"] == "Basic dTpw" for _, h in fetch.calls[-2:])
+    assert "dTpw" not in json.dumps([asdict(e) for e in recorder.events])
+    assert recorder.events[-1].source == "xlsx_all"
+
+
+def test_data_export_all_upstream_error(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:
+    metadata_id = _loaded_v4(client, fetch)
+    fetch.responses["https://services.odata.org/V4/Northwind/Northwind.svc/Products?"] = FetchHttpError("x", 401)
+    r = client.post("/api/data/export", json={"metadata_id": metadata_id, "entity_set": "Products", "scope": "all"})
+    assert r.status_code == 502 and "HTTP 401" in r.json()["detail"]
+    assert recorder.events[-1].status == "error" and recorder.events[-1].source == "xlsx_all"
+
+
+def test_data_export_unknown_metadata(client: TestClient) -> None:
+    r = client.post("/api/data/export", json={"metadata_id": "0" * 32, "entity_set": "Products", "scope": "all"})
+    assert r.status_code == 404
