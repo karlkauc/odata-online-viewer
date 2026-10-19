@@ -1,4 +1,8 @@
-# CLAUDE.md — OData Online Viewer
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## OData Online Viewer
 
 OData `$metadata` visualizer + data explorer. FastAPI + lxml backend, React/TS/Vite/Tailwind
 frontend, served as one container. Third sibling of the **XSD Online Viewer**
@@ -72,6 +76,12 @@ cd frontend && npm run lint && npm test && npm run build
 docker compose up --build                          # full image at http://127.0.0.1:8094
 ```
 
+Single tests: `cd backend && pytest tests/test_csdl_parser.py -k <name>`;
+`cd frontend && npx vitest run tests/modelIndex.test.ts` (vitest only picks up
+`frontend/tests/**/*.test.{ts,tsx}`, setup in `tests/setup.ts`); `cd e2e && npx playwright test
+tests/viewer.spec.ts --project=desktop` (projects: `desktop`, `phone`, `tablet`; `npm run test:mobile`
+runs the last two). Ruff line length is 110; `tests/*` may exceed it for inline fixtures.
+
 E2E (Playwright: desktop, phone, tablet in Chromium): build the frontend first, then
 `cd e2e && npm install && npx playwright install chromium && npx playwright test`. The config
 boots the backend with `STATIC_DIR=../frontend/dist`; set `E2E_PORT=8097` if 8080 is taken, or
@@ -91,6 +101,8 @@ works. lxml is pinned `<7` (wheels for Python 3.12 in the image and 3.14 locally
   `scripts/deploy.sh` passes the COMPLETE env-var list and the secrets `odataviewer-*`.
   **Always pass `--project odata-viewer-online` explicitly** — the active gcloud config may point
   at another project. Session affinity is on because parsed metadata lives per instance.
+- `tools/usage_report.py`, `tools/feedback_report.py` — reports over the usage DB; operations docs
+  in `docs/` (`DEPLOY_CLOUD_RUN.md`, `USAGE_STATS.md`, `FEEDBACK.md`).
 - CI (`.github/workflows/ci.yml`): backend ruff+pytest, frontend lint+build, image to GHCR on main/tags.
 
 ## Conventions

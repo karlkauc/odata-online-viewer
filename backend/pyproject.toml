@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "odata-online-viewer"
 version = "0.1.0"
-description = "XML Online Viewer: view XML data and validate it against an XSD schema, with Excel error reports."
+description = "OData Online Viewer: visualize OData $metadata (V2, V3, V4) as tree, ER diagram and source, and explore entity sets."
 requires-python = ">=3.10"
 authors = [{ name = "Karl Kauc" }]
 
