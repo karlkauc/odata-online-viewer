@@ -104,7 +104,8 @@ works. lxml is pinned `<7` (wheels for Python 3.12 in the image and 3.14 locally
   on the status20 host (port 127.0.0.1:8094), Apache vhost in
   `deploy/odata-viewer.status20.net/`. No usage DB there.
 - **Public site:** Google Cloud Run, project **`odata-viewer-online`**, service
-  `odata-online-viewer`, region `europe-west1`, domain mapping `www.odata-viewer.online` (+ apex).
+  `odata-online-viewer`, region `europe-west1`, domain mapping `www.odata-viewer.online` (+ apex,
+  which `main.py` redirects to the www `SITE_ORIGIN`: 301 for GET/HEAD, 308 otherwise).
   `scripts/deploy.sh` passes the COMPLETE env-var list and the secrets `odataviewer-*`.
   **Always pass `--project odata-viewer-online` explicitly** — the active gcloud config may point
   at another project. Session affinity is on because parsed metadata lives per instance.
