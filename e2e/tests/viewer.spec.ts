@@ -84,7 +84,7 @@ test("data explorer queries through the backend proxy", async ({ page }) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
     expect(body.url).toBe(root);
     // Let the real backend parse the bundled file as if it came from the URL.
-    const response = await route.fetch({ url: "http://127.0.0.1:" + new URL(page.url()).port + "/api/samples/northwind-v4/load?live=false", method: "POST", postData: "" });
+    const response = await route.fetch({ url: new URL(page.url()).origin + "/api/samples/northwind-v4/load?live=false", method: "POST", postData: "" });
     const model = await response.json();
     model.service_root = root;
     model.metadata_url = root + "$metadata";
