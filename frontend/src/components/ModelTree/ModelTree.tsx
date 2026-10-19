@@ -4,6 +4,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useApp } from "../../stores/appStore";
 import { KindBadge } from "../KindBadge";
 import { buildTreeRows, expandableIds, type TreeRow } from "./treeRows";
+import { Icon, KeyIcon } from "../Icon";
 
 const INDENT_PX = 14;
 
@@ -57,7 +58,7 @@ export function ModelTree({ onHide }: { onHide?: () => void }) {
         </button>
         {onHide && (
           <button type="button" className="btn text-xs py-0.5 hidden lg:inline-flex" onClick={onHide} title="Hide the model tree" aria-label="Hide the model tree">
-            «
+            <Icon name="panelLeftClose" size={14} />
           </button>
         )}
       </div>
@@ -123,12 +124,12 @@ function TreeRowView({
         tabIndex={-1}
         aria-label={row.expanded ? "Collapse" : "Expand"}
         className={clsx(
-          "w-4 h-4 shrink-0 flex items-center justify-center text-[10px] text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700",
+          "w-4 h-4 shrink-0 flex items-center justify-center text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700",
           !row.hasChildren && "invisible",
         )}
         onClick={onToggle}
       >
-        {row.expanded ? "▾" : "▸"}
+        <Icon name={row.expanded ? "chevronDown" : "chevronRight"} size={12} />
       </button>
       {isGroup ? (
         <span className="text-[11px] font-sans font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -139,8 +140,8 @@ function TreeRowView({
           <KindBadge kind={row.kind} />
           <span className={clsx("truncate", row.isKey && "font-semibold")}>{row.label}</span>
           {row.isKey && (
-            <span aria-label="key" title="Key property" className="text-[10px]">
-              🔑
+            <span aria-label="key" title="Key property">
+              <KeyIcon />
             </span>
           )}
         </>

@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { NodeKind } from "../lib/modelIndex";
+import { KeyIcon } from "./Icon";
 
 export type BadgeKind = NodeKind | "group" | "member" | "param" | "key";
 
@@ -19,11 +20,18 @@ const STYLE: Record<BadgeKind, { text: string; className: string; title: string 
   group: { text: "", className: "", title: "" },
   member: { text: "M", className: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", title: "Enum member" },
   param: { text: "PA", className: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300", title: "Parameter" },
-  key: { text: "🔑", className: "", title: "Key property" },
+  key: { text: "", className: "", title: "Key property" },
 };
 
 export function KindBadge({ kind, text, className }: { kind: BadgeKind; text?: string; className?: string }) {
   const style = STYLE[kind];
+  if (kind === "key") {
+    return (
+      <span className={clsx("inline-flex shrink-0", className)} title={style.title} aria-label={style.title}>
+        <KeyIcon />
+      </span>
+    );
+  }
   if (!style.text && !text) return null;
   return (
     <span

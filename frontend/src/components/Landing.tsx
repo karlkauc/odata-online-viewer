@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { listSamples } from "../api/client";
 import { XML_VIEWER_URL, XSD_VIEWER_URL } from "../lib/links";
 import type { Sample } from "../types/model";
+import { Icon, type IconName } from "./Icon";
 
 const FEATURED = ["northwind-v4", "trippin-v4", "jdbcodata-demo"];
 
@@ -30,17 +31,17 @@ export function Landing({ onSample }: { onSample: (sample: Sample) => Promise<vo
         </p>
 
         <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          {[
-            ["🌳", "Tree & details", "Every schema, container, set, type, property and navigation, with labels and annotations."],
-            ["🕸", "ER diagram", "Entity types as boxes, navigations as edges with 1 / 0..1 / * multiplicities, inheritance and complex types."],
-            ["📊", "Data explorer", "$filter, $select, $orderby, $top, $skip and $count, paging via next links, the exact request URL to copy."],
-            ["🔐", "Protected services", "HTTP Basic credentials are passed through per request over HTTPS and never stored."],
-            ["🧩", "V2, V3, V4, V4.01", "EDMX 1.0 associations, V4 partners and referential constraints, CSDL JSON — one consistent model."],
-            ["⬇", "Exports", "PNG and SVG of the diagram, Markdown documentation, Mermaid erDiagram, the raw source."],
-          ].map(([icon, title, text]) => (
+          {([
+            ["tree", "Tree & details", "Every schema, container, set, type, property and navigation, with labels and annotations."],
+            ["diagram", "ER diagram", "Entity types as boxes, navigations as edges with 1 / 0..1 / * multiplicities, inheritance and complex types."],
+            ["data", "Data explorer", "$filter, $select, $orderby, $top, $skip and $count, paging via next links, the exact request URL to copy."],
+            ["lock", "Protected services", "HTTP Basic credentials are passed through per request over HTTPS and never stored."],
+            ["layers", "V2, V3, V4, V4.01", "EDMX 1.0 associations, V4 partners and referential constraints, CSDL JSON — one consistent model."],
+            ["download", "Exports", "PNG and SVG of the diagram, Markdown documentation, Mermaid erDiagram, the raw source."],
+          ] as [IconName, string, string][]).map(([icon, title, text]) => (
             <li key={title} className="flex gap-3 rounded-md border border-slate-200 dark:border-slate-800 p-3">
-              <span aria-hidden="true" className="text-xl leading-none">
-                {icon}
+              <span className="shrink-0 h-9 w-9 rounded-md flex items-center justify-center bg-blue-50 text-accent dark:bg-blue-950/40 dark:text-accent-dark">
+                <Icon name={icon} size={20} />
               </span>
               <span>
                 <span className="font-medium">{title}</span>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, sendFeedback } from "../api/client";
 import { useApp } from "../stores/appStore";
 import { EVENT_OPEN_FEEDBACK, type FeedbackContext } from "../lib/links";
+import { Icon } from "./Icon";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "sent" } | { kind: "error"; message: string };
 
@@ -85,7 +86,7 @@ export function FeedbackDialog() {
             </p>
           </div>
           <button type="button" className="btn" onClick={close} aria-label="Close feedback dialog">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
 

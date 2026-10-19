@@ -55,6 +55,8 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   rows from `treeRows.ts`), `DetailPanel` (per node kind), `DiagramView` (`buildGraph.ts` →
   `layout.ts` ELK layered, lazy-loaded; `EntityNode.tsx`; focus mode; cap 150 nodes),
   `TextView` (CodeMirror, jump to `line`), `DataExplorer`, `SearchPalette`.
+  Icons: `components/Icon.tsx` (inline Lucide paths, `currentColor`, `KeyIcon` for keys) —
+  no emoji as icons, they ignore text colour and render differently per platform.
 - **Responsive tiers.** Phone `< md` (768): one pane at a time via the bottom `MobileNav`
   (Tree / Details / Diagram / Data / Source). Tablet `md`–`lg`: tab strip + a tree drawer
   (Escape / tap outside / picking a node closes it). Desktop `≥ lg`: tree column + tabbed

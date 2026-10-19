@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchHealth } from "../api/client";
 import { EVENT_OPEN_ABOUT, GITHUB_REPO_URL, ODATA_ORG_URL, SPONSOR_GO, XML_VIEWER_URL, XSD_VIEWER_URL, openFeedback } from "../lib/links";
+import { Icon } from "./Icon";
 
 /**
  * Modal "About" dialog. Opened from anywhere via `openAbout()` (lib/links) —
@@ -63,7 +64,7 @@ export function AboutDialog() {
             </p>
           </div>
           <button type="button" className="btn" onClick={close} aria-label="Close about dialog" autoFocus>
-            ✕
+            <Icon name="close" />
           </button>
         </div>
 

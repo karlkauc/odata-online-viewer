@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Icon } from "./Icon";
 
 type Theme = "light" | "dark";
 
@@ -29,7 +30,7 @@ export function ThemeToggle() {
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
       title={`Theme: ${theme}`}
     >
-      {theme === "dark" ? "☾" : "☀"}
+      <Icon name={theme === "dark" ? "moon" : "sun"} />
     </button>
   );
 }

@@ -2,6 +2,7 @@ import { memo } from "react";
 import clsx from "clsx";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { GraphNode } from "./buildGraph";
+import { KeyIcon } from "../Icon";
 
 const HANDLE = "!opacity-0 !w-1 !h-1 !min-w-0 !min-h-0 !border-0 !pointer-events-none";
 
@@ -59,7 +60,7 @@ function EntityNodeComponent({ data }: NodeProps & { data: EntityNodeData }) {
               )}
               style={{ height: 20 }}
             >
-              <span className="w-3 shrink-0 text-[10px]">{row.isKey ? "🔑" : ""}</span>
+              <span className="w-3 shrink-0 flex">{row.isKey && <KeyIcon size={11} />}</span>
               <span className={clsx("truncate", row.isKey && "font-semibold")}>{row.name}</span>
               <span className="ml-auto text-slate-500 dark:text-slate-400 truncate text-[11px]">
                 {row.type}

@@ -1,14 +1,15 @@
 import type { ViewMode } from "../stores/appStore";
+import { Icon, type IconName } from "./Icon";
 
 // On phones the model tree is a pane of its own next to the content views.
 export type MobilePane = "tree" | ViewMode;
 
-const PANES: { pane: MobilePane; label: string; icon: string }[] = [
-  { pane: "tree", label: "Tree", icon: "🌳" },
-  { pane: "details", label: "Details", icon: "📄" },
-  { pane: "diagram", label: "Diagram", icon: "🕸" },
-  { pane: "data", label: "Data", icon: "📊" },
-  { pane: "source", label: "Source", icon: "</>" },
+const PANES: { pane: MobilePane; label: string; icon: IconName }[] = [
+  { pane: "tree", label: "Tree", icon: "tree" },
+  { pane: "details", label: "Details", icon: "details" },
+  { pane: "diagram", label: "Diagram", icon: "diagram" },
+  { pane: "data", label: "Data", icon: "data" },
+  { pane: "source", label: "Source", icon: "source" },
 ];
 
 export function MobileNav({ pane, onChange }: { pane: MobilePane; onChange: (pane: MobilePane) => void }) {
@@ -28,9 +29,7 @@ export function MobileNav({ pane, onChange }: { pane: MobilePane; onChange: (pan
             (pane === p.pane ? "text-accent" : "text-slate-500 dark:text-slate-400")
           }
         >
-          <span aria-hidden="true" className="text-base leading-none font-mono">
-            {p.icon}
-          </span>
+          <Icon name={p.icon} size={20} />
           {p.label}
         </button>
       ))}

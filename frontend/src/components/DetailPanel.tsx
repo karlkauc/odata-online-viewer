@@ -27,6 +27,7 @@ import type {
 } from "../types/model";
 import { KindBadge } from "./KindBadge";
 import { ServiceOverview } from "./ServiceOverview";
+import { Icon, KeyIcon } from "./Icon";
 
 // --- small building blocks --------------------------------------------------
 
@@ -84,11 +85,11 @@ function AnnotationList({ annotations }: { annotations: Annotation[] }) {
     <section>
       <button
         type="button"
-        className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        {open ? "▾" : "▸"} Annotations ({annotations.length})
+        <Icon name={open ? "chevronDown" : "chevronRight"} size={12} /> Annotations ({annotations.length})
       </button>
       {open && (
         <dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-3 gap-y-1 text-xs">
@@ -242,11 +243,11 @@ function StructuredDetails({ type, index, highlightId }: { type: StructuredType;
               setViewMode("diagram");
             }}
           >
-            🕸 Focus in diagram
+            <Icon name="focus" size={14} /> Focus in diagram
           </button>
           {set && serviceRoot && (
             <button type="button" className="btn text-xs py-0.5" onClick={() => openData(set.name)}>
-              📊 Browse {set.name}
+              <Icon name="data" size={14} /> Browse {set.name}
             </button>
           )}
         </span>
@@ -280,8 +281,8 @@ function StructuredDetails({ type, index, highlightId }: { type: StructuredType;
                   >
                     <td className={clsx(TD, "font-mono whitespace-nowrap")}>
                       {key.has(p.name) && (
-                        <span title="Key" className="mr-1">
-                          🔑
+                        <span title="Key" className="mr-1 inline-flex align-[-1px]">
+                          <KeyIcon />
                         </span>
                       )}
                       {p.name}
@@ -512,7 +513,7 @@ function SetDetails({ set, index }: { set: EntitySet | Singleton; index: ModelIn
       <div className="flex flex-wrap gap-2">
         {serviceRoot && (
           <button type="button" className="btn btn-primary text-xs" onClick={() => openData(set.name)}>
-            📊 Browse data
+            <Icon name="data" size={14} /> Browse data
           </button>
         )}
         {type && (type.kind === "entity" || type.kind === "complex") && (

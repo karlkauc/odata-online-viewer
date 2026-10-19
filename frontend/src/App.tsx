@@ -21,16 +21,17 @@ import { useDismiss } from "./lib/useDismiss";
 import { LG_QUERY, MD_QUERY, matchesMediaQuery, useMediaQuery } from "./lib/useMediaQuery";
 import { useApp, type ViewMode } from "./stores/appStore";
 import type { Auth, Sample, ServiceModel } from "./types/model";
+import { Icon, type IconName } from "./components/Icon";
 
 const route = window.location.pathname.replace(/\/+$/, "");
 const isSamplesRoute = route === "/samples";
 const isAboutRoute = route === "/about";
 
-const VIEW_TABS: { mode: ViewMode; label: string; icon: string }[] = [
-  { mode: "details", label: "Details", icon: "📄" },
-  { mode: "diagram", label: "Diagram", icon: "🕸" },
-  { mode: "data", label: "Data", icon: "📊" },
-  { mode: "source", label: "Source", icon: "</>" },
+const VIEW_TABS: { mode: ViewMode; label: string; icon: IconName }[] = [
+  { mode: "details", label: "Details", icon: "details" },
+  { mode: "diagram", label: "Diagram", icon: "diagram" },
+  { mode: "data", label: "Data", icon: "data" },
+  { mode: "source", label: "Source", icon: "source" },
 ];
 
 const TREE_HIDDEN_KEY = "odv-tree-hidden";
@@ -164,12 +165,24 @@ export default function App() {
 
   const secondaryActions = useMemo<HeaderAction[]>(
     () => [
-      { key: "feedback", label: "💬 Feedback", title: "Send feedback", ariaLabel: "Send feedback", onClick: openFeedback },
+      { key: "feedback", label: (
+          <>
+            <Icon name="feedback" /> Feedback
+          </>
+        ), title: "Send feedback", ariaLabel: "Send feedback", onClick: openFeedback },
       { key: "xsd", label: "XSD Viewer ↗", title: "Sister tool for XML Schemas", ariaLabel: "Open the XSD Viewer", href: XSD_VIEWER_URL, external: true },
       { key: "xml", label: "XML Viewer ↗", title: "Sister tool for XML documents", ariaLabel: "Open the XML Viewer", href: XML_VIEWER_URL, external: true },
-      { key: "sponsor", label: "♥ Support ↗", title: "Support the OData Viewer on GitHub Sponsors", ariaLabel: "Support this project", href: SPONSOR_GO, external: true },
+      { key: "sponsor", label: (
+          <>
+            <Icon name="heart" className="text-rose-500" /> Support ↗
+          </>
+        ), title: "Support the OData Viewer on GitHub Sponsors", ariaLabel: "Support this project", href: SPONSOR_GO, external: true },
       { key: "github", label: "GitHub", title: "Source code on GitHub", ariaLabel: "Source code on GitHub", href: GITHUB_REPO_URL, external: true },
-      { key: "about", label: "ℹ️ About", title: "About this app", ariaLabel: "About this app", onClick: openAbout },
+      { key: "about", label: (
+          <>
+            <Icon name="info" /> About
+          </>
+        ), title: "About this app", ariaLabel: "About this app", onClick: openAbout },
     ],
     [],
   );
@@ -218,7 +231,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           <button type="button" className="btn" onClick={openSearch} disabled={!model} title="Search (Ctrl/Cmd-K)" aria-label="Search">
-            <span aria-hidden="true">🔍</span>
+            <Icon name="search" />
             <span className="hidden sm:inline">Search</span>
           </button>
           <HeaderActions actions={secondaryActions} inline={wide} />
@@ -233,7 +246,7 @@ export default function App() {
           aria-expanded={filesOpen}
           className="w-full min-w-0 flex items-center gap-2 px-3 md:px-4 py-1.5 touch:py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-900"
         >
-          <span className="text-slate-500 text-xs w-3">{filesOpen ? "▾" : "▸"}</span>
+          <Icon name={filesOpen ? "chevronDown" : "chevronRight"} size={14} className="text-slate-500" />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Service</span>
           {!filesOpen && <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{statusText}</span>}
         </button>
@@ -293,7 +306,7 @@ export default function App() {
                   aria-pressed={wide ? !treeHidden : treeOpen}
                   title={wide ? "Show the model tree" : "Model tree"}
                 >
-                  🌳 Tree
+                  <Icon name="tree" /> Tree
                 </button>
                 <div className="flex gap-1" role="tablist">
                   {VIEW_TABS.map((tab) => (
@@ -303,13 +316,14 @@ export default function App() {
                       role="tab"
                       aria-selected={viewMode === tab.mode}
                       className={clsx(
-                        "px-3 py-1 touch:py-2 text-sm font-medium rounded-md",
+                        "inline-flex items-center gap-1.5 px-3 py-1 touch:py-2 text-sm font-medium rounded-md",
                         viewMode === tab.mode
                           ? "bg-accent text-white dark:bg-accent-dark dark:text-slate-950"
                           : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
                       )}
                       onClick={() => setViewMode(tab.mode)}
                     >
+                      <Icon name={tab.icon} size={15} />
                       {tab.label}
                     </button>
                   ))}

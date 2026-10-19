@@ -61,9 +61,9 @@ test("the model tree column can be hidden on desktop and stays hidden", async ({
   // The choice survives a new visit (localStorage).
   await loadBundledSample(page);
   await expect(tree).toBeHidden();
-  await page.getByRole("button", { name: "🌳 Tree" }).click();
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
   await expect(tree).toBeVisible();
-  await expect(page.getByRole("button", { name: "🌳 Tree" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Tree", exact: true })).toBeHidden();
 });
 
 test("search palette finds a property and reveals it", async ({ page }) => {

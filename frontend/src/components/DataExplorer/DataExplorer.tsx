@@ -8,6 +8,7 @@ import { useDismiss } from "../../lib/useDismiss";
 import { DEFAULT_QUERY, useApp, type DrillLevel } from "../../stores/appStore";
 import type { Auth, Cell, QueryOptions } from "../../types/model";
 import { KindBadge } from "../KindBadge";
+import { Icon, KeyIcon } from "../Icon";
 
 const INPUT =
   "w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-mono";
@@ -101,7 +102,13 @@ function ExportMenu({ rows, all, busy, onExport }: { rows: number; all: boolean;
   return (
     <div ref={ref} className="relative">
       <button type="button" className="btn text-xs py-0.5" disabled={busy} onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
-        {busy ? "Exporting…" : "Excel ▾"}
+        {busy ? (
+          "Exporting…"
+        ) : (
+          <>
+            <Icon name="download" size={14} /> Excel <Icon name="chevronDown" size={12} />
+          </>
+        )}
       </button>
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1 text-xs">
@@ -442,7 +449,7 @@ export function DataExplorer() {
               {result.request_url}
             </code>
             <button type="button" className="btn text-xs py-0.5 shrink-0" onClick={() => void copy(result.request_url)}>
-              {copied ? "✓" : "Copy URL"}
+              {copied ? <Icon name="check" size={14} /> : "Copy URL"}
             </button>
           </span>
           <span className="flex items-center gap-1 ml-auto">
@@ -492,7 +499,7 @@ export function DataExplorer() {
                 {result.columns.map((c) => (
                   <th key={c} className="text-left px-2 py-1 font-semibold font-mono whitespace-nowrap border-b border-slate-200 dark:border-slate-800">
                     {c}
-                    {fields.find((f) => f.name === c)?.isKey && <span className="ml-1 text-[9px]">🔑</span>}
+                    {fields.find((f) => f.name === c)?.isKey && <KeyIcon size={11} className="ml-1 inline align-[-1px]" />}
                   </th>
                 ))}
               </tr>

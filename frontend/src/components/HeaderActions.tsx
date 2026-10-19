@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useDismiss } from "../lib/useDismiss";
+import { Icon } from "./Icon";
 
 export interface HeaderAction {
   key: string;
@@ -71,7 +72,7 @@ function HeaderMenu({ actions }: { actions: HeaderAction[] }) {
         title="More actions"
         onClick={() => setOpen((v) => !v)}
       >
-        <span aria-hidden="true" className="text-base leading-none">⋯</span>
+        <Icon name="more" />
       </button>
       {open && (
         <div

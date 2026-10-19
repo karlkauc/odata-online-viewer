@@ -21,6 +21,7 @@ import { RelationEdge } from "./RelationEdge";
 import { exportFlowAsPng, exportFlowAsSvg } from "./exportImage";
 import { FULL_FIT } from "./fitOptions";
 import { layoutGraph, type Positioned } from "./layout";
+import { Icon } from "../Icon";
 
 const NODE_TYPES = { entity: EntityNode };
 const EDGE_TYPES = { relation: RelationEdge };
@@ -263,7 +264,7 @@ function DiagramInner() {
         {compact ? (
           <div ref={menuRef} className="relative">
             <button type="button" className="btn px-2.5" aria-label="Diagram options" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
-              ⚙
+              <Icon name="settings" />
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 z-20 flex flex-col items-stretch gap-1 p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">

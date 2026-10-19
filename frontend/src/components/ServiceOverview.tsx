@@ -3,6 +3,7 @@ import { shareLink } from "../lib/deepLink";
 import { useCopy } from "../lib/useCopy";
 import { useApp } from "../stores/appStore";
 import { KindBadge } from "./KindBadge";
+import { Icon } from "./Icon";
 
 function Stat({ label, value }: { label: string; value: number }) {
   if (!value) return null;
@@ -65,22 +66,23 @@ export function ServiceOverview() {
 
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={() => setViewMode("diagram")}>
-          🕸 Open diagram
+          <Icon name="diagram" /> Open diagram
         </button>
         {sets.length > 0 && model.service_root && (
           <button type="button" className="btn" onClick={() => openData(sets[0].set.name)}>
-            📊 Browse data
+            <Icon name="data" /> Browse data
           </button>
         )}
         <button type="button" className="btn" onClick={() => void downloadExport(model.metadata_id, "markdown")}>
-          ⬇ Markdown docs
+          <Icon name="download" /> Markdown docs
         </button>
         <button type="button" className="btn" onClick={() => void downloadExport(model.metadata_id, "mermaid")}>
-          ⬇ Mermaid ER
+          <Icon name="download" /> Mermaid ER
         </button>
         {share && (
           <button type="button" className="btn" onClick={() => void copy(share)} title={share}>
-            {copied ? "✓ Link copied" : "🔗 Copy share link"}
+            <Icon name={copied ? "check" : "link"} />
+            {copied ? "Link copied" : "Copy share link"}
           </button>
         )}
       </div>
