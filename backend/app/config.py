@@ -14,6 +14,7 @@ class Settings:
     allowed_schema_hosts: tuple[re.Pattern[str], ...]
     cache_ttl_min: int
     cache_max_entries: int
+    cache_max_mb: int
     log_level: str
     static_dir: str
     fetch_timeout_seconds: float
@@ -37,6 +38,7 @@ class Settings:
     data_max_response_mb: int
     data_export_max_rows: int
     data_export_deadline_seconds: float
+    data_export_max_mb: int
     site_origin: str
     trusted_proxy_hops: int
 
@@ -90,6 +92,8 @@ def load_settings() -> Settings:
         allowed_schema_hosts=_parse_host_patterns(os.getenv("ALLOWED_SCHEMA_HOSTS", "")),
         cache_ttl_min=int(os.getenv("CACHE_TTL_MIN", "60")),
         cache_max_entries=int(os.getenv("CACHE_MAX_ENTRIES", "64")),
+        # Approximate memory budget; entry counts alone let a few huge documents fill RAM.
+        cache_max_mb=int(os.getenv("CACHE_MAX_MB", "256")),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         static_dir=os.getenv("STATIC_DIR", "/app/static"),
         fetch_timeout_seconds=float(os.getenv("FETCH_TIMEOUT_SECONDS", "10")),
@@ -118,6 +122,7 @@ def load_settings() -> Settings:
         # Excel export of all rows: pages through the set; stay below Cloud Run's 120 s timeout.
         data_export_max_rows=int(os.getenv("DATA_EXPORT_MAX_ROWS", "50000")),
         data_export_deadline_seconds=float(os.getenv("DATA_EXPORT_DEADLINE_SECONDS", "90")),
+        data_export_max_mb=int(os.getenv("DATA_EXPORT_MAX_MB", "100")),
         # Canonical origin written into the SPA shell (title/canonical/og:url per route).
         site_origin=os.getenv("SITE_ORIGIN", "https://www.odata-viewer.online").rstrip("/"),
         # Proxies in front of the app that append to X-Forwarded-For (Cloud Run: 1;

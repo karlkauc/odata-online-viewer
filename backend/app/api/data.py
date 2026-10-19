@@ -191,6 +191,7 @@ async def export_entity_set(request: Request, payload: ExportPayload) -> Respons
                 deadline_seconds=settings.data_export_deadline_seconds,
                 timeout=settings.data_timeout_seconds,
                 max_bytes=settings.data_max_response_bytes,
+                max_total_bytes=settings.data_export_max_mb * 1024 * 1024,
                 fetch=fetch_json,
             )
         except DataError as exc:

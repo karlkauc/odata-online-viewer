@@ -56,7 +56,8 @@ def _first_namespace(model: ServiceModel) -> str | None:
 def _store(model: ServiceModel, text: str, *, key_extra: str = "") -> ServiceModel:
     digest = hashlib.sha256(text.encode("utf-8") + key_extra.encode("utf-8")).hexdigest()[:32]
     model.metadata_id = digest
-    metadata_cache.put(digest, StoredMetadata(model=model, text=text))
+    # The parsed model takes a few times the source text.
+    metadata_cache.put(digest, StoredMetadata(model=model, text=text), size=len(text) * 4)
     return model
 
 
@@ -277,8 +278,9 @@ async def get_metadata(request: Request, metadata_id: str) -> ServiceModel:
 @limiter.limit(READ_LIMIT)
 async def get_metadata_source(request: Request, metadata_id: str) -> Response:
     stored = get_stored(metadata_id)
-    media = "application/json" if stored.model.format == "json" else "application/xml"
-    return PlainTextResponse(stored.text, media_type=f"{media}; charset=utf-8")
+    # text/plain: uploaded XML in the XHTML namespace would otherwise render as
+    # a page on this origin when the URL is opened directly.
+    return PlainTextResponse(stored.text, media_type="text/plain; charset=utf-8")
 
 
 @router.get("/metadata/{metadata_id}/export/{fmt}")

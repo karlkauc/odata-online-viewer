@@ -54,7 +54,12 @@ class BufferRequestBodyMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # The handlers check the upload size only after this buffer is complete;
+        # stop keeping chunks past the limit so a huge body cannot fill memory.
+        # The rest is still drained (see above) and then answered with 413.
+        limit = settings.max_upload_bytes * 3 // 2 + 1024 * 1024  # JSON escaping, multipart framing
         chunks: list[bytes] = []
+        size = 0
         while True:
             message = await receive()
             if message["type"] == "http.disconnect":
@@ -62,9 +67,19 @@ class BufferRequestBodyMiddleware:
             if message["type"] == "http.request":
                 body = message.get("body")
                 if body:
-                    chunks.append(body)
+                    size += len(body)
+                    if size <= limit:
+                        chunks.append(body)
+                    else:
+                        chunks.clear()
                 if not message.get("more_body", False):
                     break
+        if size > limit:
+            response = JSONResponse(
+                {"detail": f"request exceeds the {settings.max_upload_mb} MB upload limit"}, status_code=413
+            )
+            await response(scope, receive, send)
+            return
 
         buffered = b"".join(chunks)
         sent = False
@@ -150,7 +165,11 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
-    response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+    # sandbox: a document an API route echoes (sample XML, metadata source) must
+    # never run script or submit forms on this origin, even when opened directly.
+    response.headers.setdefault(
+        "Content-Security-Policy", "default-src 'none'; form-action 'none'; frame-ancestors 'none'; sandbox"
+    )
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     # Credentials travel in request bodies; make sure no intermediary caches answers.

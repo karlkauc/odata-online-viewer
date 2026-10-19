@@ -13,7 +13,7 @@ requested with an ``Accept`` header anyway.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 from app.parser.security import normalize_url
 
@@ -113,5 +113,9 @@ def same_service(service_root: str, url: str) -> bool:
     (used to validate ``@odata.nextLink`` before following it)."""
     root, candidate = urlsplit(service_root), urlsplit(url)
     if (root.scheme, root.netloc.lower()) != (candidate.scheme, candidate.netloc.lower()):
+        return False
+    # httpx resolves dot segments before sending: ".../odata/../admin" would pass
+    # the prefix check below and still leave the service.
+    if any(segment in (".", "..") for segment in unquote(candidate.path).split("/")):
         return False
     return candidate.path.startswith(root.path.rstrip("/") + "/") or candidate.path == root.path.rstrip("/")

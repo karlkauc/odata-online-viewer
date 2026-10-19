@@ -160,6 +160,31 @@ def test_deadline_marks_the_export_incomplete() -> None:
     assert len(result.rows) == 500 and result.truncated
 
 
+def test_byte_budget_marks_the_export_incomplete() -> None:
+    def answer(url: str):
+        skip = skip_of(url)
+        return {"value": [{"ProductID": i, "Wide": "x" * 100} for i in range(skip, skip + 500)]}
+
+    # One page is ~60 KB of JSON; the budget lets two through.
+    result = collect(model("northwind-v4.xml", V4_ROOT), Pages(answer), max_total_bytes=150_000)
+    assert len(result.rows) == 1000 and result.truncated
+    assert "MB of data" in result.notices[0]
+
+
+def test_each_request_is_bounded_by_the_remaining_deadline() -> None:
+    timeouts: list[float] = []
+
+    def fetch(url, model, auth, *, timeout, max_bytes):
+        timeouts.append(timeout)
+        return {"value": [{"ProductID": 1}]}, 200, "application/json", 1
+
+    collect_rows(
+        model("northwind-v4.xml", V4_ROOT), "Products", QueryOptions(), None,
+        max_rows=10, deadline_seconds=5, timeout=30, max_bytes=1, fetch=fetch,
+    )
+    assert timeouts and timeouts[0] <= 5
+
+
 def test_refuses_next_links_off_the_service() -> None:
     fetch = Pages(lambda url: {"value": [{"ProductID": 1}], "@odata.nextLink": "https://evil.example/x"})
     with pytest.raises(DataError):

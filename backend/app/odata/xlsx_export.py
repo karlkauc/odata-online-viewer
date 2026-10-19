@@ -60,12 +60,14 @@ def collect_rows(
     deadline_seconds: float,
     timeout: float,
     max_bytes: int,
+    max_total_bytes: int | None = None,
     fetch: Callable[..., tuple[Any, int, str | None, int]] = fetch_json,
 ) -> CollectedRows:
     """All rows the query matches, starting at the user's ``$skip``.
 
     Stops on an empty or short page, when the inline count is reached, at
-    ``max_rows`` or at the deadline (both mark the result ``truncated``)."""
+    ``max_rows``, at the deadline or once the rows exceed ``max_total_bytes``
+    (the last three mark the result ``truncated``)."""
     started = time.monotonic()
     single = not resolve_path(model, entity_set).paged
     page_options = options.model_copy(update={"top": MAX_TOP})
@@ -79,10 +81,24 @@ def collect_rows(
     request_started_at = 0
     first_of_previous: dict[str, Any] | None = None
     notices: list[str] = []
+    total_bytes = 0
     while True:
-        body, _status, _ctype, _dur = fetch(url, model, auth, timeout=timeout, max_bytes=max_bytes)
+        # A page must not run past the export deadline either.
+        remaining = max(1.0, deadline_seconds - (time.monotonic() - started))
+        body, _status, _ctype, _dur = fetch(
+            url, model, auth, timeout=min(timeout, remaining), max_bytes=max_bytes
+        )
         page, page_count, next_link = normalise_payload(body, model)
         pages += 1
+        if max_total_bytes is not None:
+            # Rows of ~5 MB pages add up: 100 pages of wide rows would not fit in memory.
+            total_bytes += len(json.dumps(page, default=str))
+            if total_bytes > max_total_bytes:
+                notices.append(
+                    f"The export stopped at {max_total_bytes // (1024 * 1024)} MB of data "
+                    f"({len(rows):,} rows); narrow the $select or $filter to get the rest."
+                )
+                return CollectedRows(first_url, rows, count, pages, True, notices)
         if page_count is not None and count is None:
             count = page_count
         if single or not page:

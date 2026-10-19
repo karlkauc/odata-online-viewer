@@ -82,6 +82,10 @@ def test_same_service() -> None:
     assert same_service(root, "https://h.example/odata/Products?$skiptoken=5")
     assert not same_service(root, "https://evil.example/odata/Products")
     assert not same_service(root, "https://h.example/other/Products")
+    # httpx would resolve these to /admin before sending.
+    assert not same_service(root, "https://h.example/odata/../admin")
+    assert not same_service(root, "https://h.example/odata/%2e%2e/admin")
+    assert not same_service(root, "https://h.example/odata/./x/../../admin")
 
 
 def test_candidates_walk_up_from_a_resource_path() -> None:

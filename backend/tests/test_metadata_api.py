@@ -126,7 +126,8 @@ def test_upload_load_and_source_round_trip(client: TestClient) -> None:
     assert again.status_code == 200 and again.json()["metadata_id"] == metadata_id
     source = client.get(f"/api/metadata/{metadata_id}/source")
     assert source.status_code == 200
-    assert source.headers["content-type"].startswith("application/xml")
+    assert source.headers["content-type"].startswith("text/plain")
+    assert "sandbox" in source.headers["content-security-policy"]
     # Served pretty-printed (the snapshot is one long line), same content.
     assert r.json()["source_reformatted"] is True
     assert source.text.count("\n") > 100 and 'EntityType Name="Order"' in source.text
