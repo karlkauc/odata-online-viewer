@@ -1,94 +1,90 @@
 # OData Online Viewer
 
-**<https://www.odata-viewer.online>** — visualize the `$metadata` of any OData service (V2, V3, V4, V4.01)
-as a tree, an entity-relationship diagram or highlighted source, and query its entity sets live.
-Free, open source, no account.
+**See what an OData service contains, how its entities relate, and what data it returns —
+right in your browser. No install, no account, nothing stored.**
 
-Sister tools by the same author: [Online XSD Viewer](https://www.xsd-viewer.online) and
-[XML Online Viewer](https://www.xml-viewer.online).
+Open <https://www.odata-viewer.online>, paste the URL of an OData service (or its `$metadata`),
+and the viewer turns the raw EDMX into a browsable tree, an entity-relationship diagram and a
+live data explorer. Works with OData V2, V3, V4 and V4.01 — SAP Gateway, Microsoft Dynamics,
+SharePoint, Business Central and any other OData API.
 
-## What it does
+![Load a service, browse entity types, see the ER diagram, query data, read the source](docs/media/overview.gif)
 
-- **Load** a service by URL (service root or `…/$metadata`), paste the document, or upload an
-  EDMX/CSDL file. Protected services: HTTP Basic credentials are forwarded per request over HTTPS
-  and never stored. Built-in samples: Northwind (V2/V4), TripPin, OData.org demo, JdbcOdata.
-- **Tree & details** — schemas, entity containers, entity sets, singletons, entity/complex/enum
-  types, type definitions, functions, actions and imports; keys, facets, labels, annotations,
-  inherited members, "exposed as", "derived types", "bound operations".
-- **ER diagram** (React Flow + ELK) — entity types as boxes, navigations as edges with
-  `1 / 0..1 / *` multiplicities, inheritance, optional complex types; focus mode for big models;
-  PNG/SVG export.
-- **Source** — the raw `$metadata` with jump-to-line from any node.
-- **Data explorer** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, `$expand`,
-  `$search`, custom parameters, paging via next links; V2 answers are normalised (dates,
-  `__deferred`, `__count`). The exact request URL is shown for reuse in Excel / Power BI / curl.
-  **Excel export** of the shown page or of all matching rows (paged through by the backend, up
-  to 50,000 rows), with numbers and dates typed from the model and a sheet describing the query.
-- **Exports** — Markdown documentation, Mermaid `erDiagram`, the source document.
-- **Shareable links** — `?url=…` loads a public service on arrival, `#/id/…?view=…` restores the
-  selection and view.
+## What it's good for
 
-Why a backend: most OData services send no CORS headers and many need authentication, so the
-browser cannot call them directly. The FastAPI backend fetches metadata and data with SSRF
-guards (no private addresses, pinned IPs, size and redirect caps) and keeps parsed metadata in a
-short-lived memory cache. Nothing is written to disk.
+- **Understanding an unfamiliar service.** A `$metadata` document of a real system easily runs to
+  thousands of lines of XML. The viewer shows which entity sets exist, what their keys and
+  properties are, how they are connected and which functions and actions they offer — with
+  SAP labels and descriptions where the service provides them.
+- **Seeing the data model at a glance.** The ER diagram draws entity types and their navigations
+  with `1 / 0..1 / *` multiplicities, so you can follow `Order → Customer → …` without reading a
+  line of XML.
+- **Trying out queries before you code them.** Build `$filter`, `$select`, `$orderby` or
+  `$expand` in a form, look at the result, and copy the exact request URL into Excel, Power BI,
+  Postman, curl or your own code.
+- **Getting data out.** Export the rows you see — or all matching rows — to Excel, with numbers
+  and dates as real numbers and dates.
+- **Documenting a service.** Generate Markdown documentation or a Mermaid `erDiagram` for a wiki,
+  a ticket or a design document, or save the diagram as PNG/SVG.
+- **Talking about a service.** Every entity, property and view has a link you can share with a
+  colleague.
 
-## Repository layout
+## What you can do with it
 
-```
-backend/   FastAPI app — app/odata/ (CSDL parser, data client, exports), app/api/ (metadata, data, samples, feedback, go),
-           app/spa.py (SPA shell with per-route meta), app/usage/ (anonymous usage statistics), tests/
-frontend/  React 18 + TypeScript + Vite + Tailwind — src/components/{ModelTree,DetailPanel,DiagramView,TextView,DataExplorer,…},
-           src/lib/modelIndex.ts (flat index over the model), src/stores/appStore.ts (zustand), tests/ (vitest)
-e2e/       Playwright (desktop, phone, tablet)
-deploy/    local test instance behind Apache (odata-viewer.status20.net)
-scripts/   deploy.sh (Google Cloud Run)
-docs/      operations: Cloud Run, usage statistics, feedback, technical notes
-```
+- **Load a service any way you like** — by URL (service root or `…/$metadata`), by pasting the
+  document, or by uploading an EDMX/CSDL file (XML or JSON). Services behind a login work with
+  HTTP Basic authentication. Not sure where to start? Try one of the built-in samples
+  (Northwind, TripPin and others).
+- **Browse the model** — schemas, entity sets, singletons, entity/complex/enum types, functions,
+  actions and imports in a searchable tree (Ctrl+K). The details panel shows keys, types, facets,
+  labels, annotations, inherited members and where a type is used.
+- **Explore the diagram** — pan, zoom, focus on one entity and its neighbours in big models,
+  toggle properties and complex types, export as PNG or SVG.
+- **Query live data** — pick an entity set, set query options, page through the results, sort by
+  clicking a column header, follow foreign keys and navigations to related records.
+- **Read the source** — the original `$metadata` with syntax highlighting; jump from any node to
+  its line.
+- **Use it anywhere** — light and dark mode, and a layout that works on phones and tablets too.
 
-## Local development
+## Your data stays with you
 
-```bash
-cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
-uvicorn app.main:app --reload --port 8080            # API only, http://127.0.0.1:8080/api/docs
+- **Nothing is stored.** Metadata is parsed in memory and dropped from a short-lived cache. Query
+  results go straight to your browser.
+- **Credentials are never kept.** Login data is only sent over HTTPS, passed on with each request
+  and forgotten when you close the tab.
+- **No account, no login, no tracking scripts.**
+- **You can run it yourself.** The whole app is a single Docker container — see
+  [docs/TECHNICAL.md](docs/TECHNICAL.md) for self-hosting, e.g. to reach services inside your
+  company network.
 
-cd frontend && npm install && npm run dev             # http://localhost:5173, proxies /api → 8080
+## No warranty
 
-cd backend && pytest && ruff check .
-cd frontend && npm run lint && npm test && npm run build
-cd e2e && npm install && npx playwright install chromium && npx playwright test   # needs frontend/dist
+This tool is offered free of charge and **without any warranty**. The visualisation is a
+best-effort rendering of the service description; always check the authoritative service before
+relying on it for production decisions. Use is at your own risk.
 
-docker compose up --build                             # full image at http://127.0.0.1:8094
-```
+## Found a bug? Missing a feature?
 
-Configuration is by environment variable (see `backend/app/config.py`): upload and fetch limits,
-`DATA_TIMEOUT_SECONDS` / `DATA_MAX_RESPONSE_MB` for the data explorer,
-`DATA_EXPORT_MAX_ROWS` / `DATA_EXPORT_DEADLINE_SECONDS` for the Excel export, `ALLOWED_SCHEMA_HOSTS`
-to lock the URL loader down to a host allow-list, `SITE_ORIGIN` for canonical URLs,
-`USAGE_DB_URL` & co. for statistics (off by default).
+Please open an issue on GitHub — bug reports, reproduction steps and feature requests are all
+welcome, or use the *Feedback* button in the app:
 
-## API
+➡️ <https://github.com/karlkauc/odata-online-viewer/issues>
 
-Interactive docs at `/api/docs`. Main endpoints:
+## Technical details, self-hosting & development
 
-| Method & path | Purpose |
-|---|---|
-| `POST /api/metadata/url` `{url, auth?}` | fetch and parse `$metadata` of a service |
-| `POST /api/metadata/text` · `POST /api/metadata/upload` | parse pasted / uploaded CSDL (XML or JSON) |
-| `GET /api/metadata/{id}` · `/source` · `/export/{markdown,mermaid,source}` | model, raw document, exports |
-| `GET /api/samples` · `POST /api/samples/{id}/load` | built-in services (live, with bundled fallback) |
-| `POST /api/data/query` | one page of an entity set, normalised V2/V4 |
-| `POST /api/data/raw` | any resource path below the service root, JSON as is |
+Architecture, security, configuration, the HTTP API, deployment and the local development
+setup are described in **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
 
-Ids are content hashes; an expired cache entry is transparently reloaded by the frontend.
+## Sister tools
 
-## Deployment
-
-Public site: Google Cloud Run, see `scripts/deploy.sh` and `docs/DEPLOY_CLOUD_RUN.md`. The CI
-workflow also publishes an image to GHCR. A local Docker instance behind Apache is described in
-`deploy/odata-viewer.status20.net/README.md`.
+- [XSD Online Viewer](https://www.xsd-viewer.online) — visualise XML schemas.
+- [XML Online Viewer](https://www.xml-viewer.online) — read XML and validate it against an XSD.
 
 ## License
 
 MIT — © 2026 Karl Kauc. Sample metadata documents are snapshots of public demo services
 (services.odata.org) included for offline use and tests.
+
+## Author
+
+Built and maintained by **Karl Kauc** — [github.com/karlkauc](https://github.com/karlkauc).

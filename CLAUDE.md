@@ -113,6 +113,9 @@ works. lxml is pinned `<7` (wheels for Python 3.12 in the image and 3.14 locally
   at another project. Session affinity is on because parsed metadata lives per instance.
 - `tools/usage_report.py`, `tools/feedback_report.py` — reports over the usage DB; operations docs
   in `docs/` (`DEPLOY_CLOUD_RUN.md`, `USAGE_STATS.md`, `FEEDBACK.md`).
+- `README.md` is user-facing (what the tool is for, `docs/media/overview.gif`); technical content
+  goes to `docs/TECHNICAL.md`. Regenerate the GIF with `cd e2e && node scripts/record-overview.mjs`
+  (needs ffmpeg, loads Northwind live), the PNGs with `scripts/screenshots.mjs`.
 - CI (`.github/workflows/ci.yml`): backend ruff+pytest, frontend lint+build, image to GHCR on main/tags.
 
 ## Conventions

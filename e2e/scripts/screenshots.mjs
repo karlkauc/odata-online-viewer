@@ -30,7 +30,7 @@ await page.screenshot({ path: resolve(media, "01-landing.png") });
 await page.getByRole("button", { name: "Northwind (OData V4)", exact: true }).click();
 await page.waitForSelector("text=northwind-v4.xml");
 // Collapse the loader so the views get the room.
-await page.getByRole("button", { name: /^▾ Service/ }).click();
+await page.getByRole("button", { name: /^Service/ }).click();
 await page.getByRole("treeitem", { name: "Order", exact: true }).click();
 await page.waitForSelector("text=Navigation properties");
 await page.screenshot({ path: resolve(media, "02-details.png") });
@@ -57,7 +57,7 @@ await og.route("**/api/samples/northwind-v4/load**", (route) =>
 await og.goto(base + "/samples");
 await og.getByRole("button", { name: /^Northwind \(OData V4\) V4\.0/ }).click();
 await og.waitForSelector("text=northwind-v4.xml");
-await og.getByRole("button", { name: /^▾ Service/ }).click();
+await og.getByRole("button", { name: /^Service/ }).click();
 await og.getByRole("treeitem", { name: "Order", exact: true }).click();
 await og.getByRole("tab", { name: "Diagram" }).click();
 await og.waitForSelector(".react-flow__node", { timeout: 30_000 });
