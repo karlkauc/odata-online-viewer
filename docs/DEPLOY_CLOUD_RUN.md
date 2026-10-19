@@ -25,7 +25,7 @@ gcloud run deploy odata-online-viewer \
   --max-instances 5 \
   --timeout 120 \
   --session-affinity \
-  --set-env-vars LOG_LEVEL=INFO,MAX_UPLOAD_MB=50,CACHE_TTL_MIN=60,CACHE_MAX_ENTRIES=64,FETCH_MAX_RESPONSE_MB=10,DATA_TIMEOUT_SECONDS=30,DATA_MAX_RESPONSE_MB=5 \
+  --set-env-vars LOG_LEVEL=INFO,MAX_UPLOAD_MB=50,CACHE_TTL_MIN=60,CACHE_MAX_ENTRIES=64,FETCH_MAX_RESPONSE_MB=10,DATA_TIMEOUT_SECONDS=30,DATA_MAX_RESPONSE_MB=5
 ```
 
 - **Memory 1Gi:** lxml parsing + the in-memory model of large (SAP) services are
@@ -86,8 +86,10 @@ GCP metadata IP `169.254.169.254`) and pins each request to a pre-validated IP
 
 ## 5. Secrets & logging
 
-- No secrets are required. If any are added later, use **Secret Manager** mounted
-  as env/files — never bake into the image or `--set-env-vars`.
+- Secrets live in **Secret Manager** and are mounted as env vars by `scripts/deploy.sh`
+  (`odataviewer-db-password`, `odataviewer-usage-hash-secret`,
+  `odataviewer-maxmind-license-key`) — never bake them into the image or
+  `--set-env-vars`. Setup: `docs/FEEDBACK.md`, `docs/USAGE_STATS.md`.
 - Logs are structured JSON on stdout with a `severity` field, so **Cloud Logging**
   classifies levels automatically. Keep `LOG_LEVEL=INFO` in production (DEBUG may
   log more detail).

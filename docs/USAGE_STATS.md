@@ -1,7 +1,7 @@
 # Anonymous usage statistics
 
 The public site records **aggregate, anonymous** usage so the viewer can be
-improved based on real use: how many people load XML documents and schemas,
+improved based on real use: how many people load `$metadata` documents,
 from where, how big they are, how long parsing and data queries take and how often
 it fails. Document/schema **content is never stored**, and the raw client IP
 is neither stored nor logged.
@@ -10,9 +10,10 @@ The feature is **off by default** — it only activates when `USAGE_DB_URL` is
 set. Self-hosted installs without it record nothing.
 
 The implementation (`backend/app/usage/`) is a port of the XSD/XML viewers'
-module; the `usage_event` table has the **same columns** in both apps so one
-dashboard can query both databases. Only the event types and the meaning of
-a few columns differ.
+module; the `usage_event` table has the **same columns** as theirs plus
+`odata_version`, so the usage dashboard (`~/webdav/usage_statistics`, app key
+`odataviewer`) reads it with the shared viewer queries. Only the event types
+and the meaning of a few columns differ.
 
 ## What is collected
 
@@ -34,13 +35,11 @@ One row per event in table `usage_event` (DDL: `backend/sql/usage_stats.sql`):
 | `file_count` | `metadata_load`: 1 |
 | `element_count` | `metadata_load`: entity types; `data_query`: rows returned |
 | `type_count` | `metadata_load`: complex + enum types |
-| `error_count` | unused |
-| `duration_ms`, `status`, `status_code`, `error_detail` | timing and outcome (`ok`/`invalid`/`parse_error`/`rejected`); `error_detail` is the exception message, ≤255 chars |
+| `duration_ms`, `status`, `status_code`, `error_detail` | timing and outcome (`ok`/`parse_error`/`rejected`/`error`/`http_<status>`); `error_detail` is the exception message, ≤255 chars |
 | `diagnostic_count`, `error_count` | always NULL here (kept for column parity with the XSD/XML viewers) |
 | `app_version`, `received_at` | build version, server timestamp |
 
-Status semantics: `rejected` = size limit, SSRF guard, unknown/expired cache
-or SSRF guard; `parse_error` = not a CSDL document; `error` (data_query) = the service answered with an error;
+Status semantics: `rejected` = size limit, SSRF guard or unknown/expired cache; `parse_error` = not a CSDL document; `error` (data_query) = the service answered with an error;
 `http_401` etc. (metadata_load) = the service refused the request with that status.
 
 Not tracked: `GET /api/metadata/{id}` (cache read), `/source` and `/api/samples`
@@ -94,24 +93,25 @@ request → request_logging middleware binds RequestUsage(ip, ua, referrer)
 
 ## Production database
 
-Same DB as the feedback table: `odataviewer_stats` / role `xmlviewer` on the
+Same DB as the feedback table: `odataviewer_stats` / role `odataviewer` on the
 Hetzner VPS (62.238.116.11, TLS only). Details in `docs/FEEDBACK.md`.
 
 ### One-time setup
 
 ```bash
-# 1. DDL on the VPS (scp backend/sql/usage_stats.sql there first)
+# 1. DDL on the VPS after feedback.sql (scp backend/sql/usage_stats.sql there first)
 ssh deploy@62.238.116.11
 PGPASSWORD=$(cat /home/deploy/odataviewer-db-password.txt) \
   psql "postgresql://odataviewer@127.0.0.1:5432/odataviewer_stats?sslmode=require" -f usage_stats.sql
 #    check: \d usage_event  and  \d feedback (visitor_hash, country_code, device)
 
-# 2. GCP secrets (project odata-viewer-online); the DB password secret already exists
+# 2. GCP secrets (project odata-viewer-online); the DB password secret comes from docs/FEEDBACK.md
+PROJECT_NUMBER=$(gcloud projects describe odata-viewer-online --format='value(projectNumber)')
 openssl rand -hex 32 | gcloud secrets create odataviewer-usage-hash-secret --data-file=- --project odata-viewer-online
 gcloud secrets create odataviewer-maxmind-license-key --data-file=- --project odata-viewer-online
 for s in odataviewer-usage-hash-secret odataviewer-maxmind-license-key; do
   gcloud secrets add-iam-policy-binding "$s" --project odata-viewer-online \
-    --member serviceAccount:239650873304-compute@developer.gserviceaccount.com \
+    --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role roles/secretmanager.secretAccessor
 done
 
@@ -122,7 +122,7 @@ scripts/deploy.sh
 ## Analysis
 
 Connect directly:
-`psql "postgresql://xmlviewer:…@62.238.116.11:5432/odataviewer_stats?sslmode=require"`
+`psql "postgresql://odataviewer:…@62.238.116.11:5432/odataviewer_stats?sslmode=require"`
 (or from the VPS via `127.0.0.1`). Useful queries:
 
 ```sql
@@ -142,8 +142,8 @@ SELECT event_type, source, status, count(*), round(avg(duration_ms)) avg_ms, rou
 FROM usage_event WHERE event_type='metadata_load' GROUP BY 1,2,3 ORDER BY 1,2,4 DESC;
 
 -- Data explorer outcome
-SELECT status, count(*), round(avg(error_count)) avg_errors
-FROM usage_event WHERE event_type='data_query' GROUP BY 1;
+SELECT source, status, count(*), round(avg(element_count)) avg_rows, round(avg(duration_ms)) avg_ms
+FROM usage_event WHERE event_type='data_query' GROUP BY 1,2 ORDER BY 3 DESC;
 
 -- Which files / schemas
 SELECT schema_name, odata_version, count(*) FROM usage_event WHERE event_type='metadata_load' GROUP BY 1,2 ORDER BY 3 DESC LIMIT 25;

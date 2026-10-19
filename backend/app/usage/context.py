@@ -1,7 +1,7 @@
 """Per-request usage context and the ``emit()`` helper used by routers.
 
 The middleware in ``app.main`` stores a ``RequestUsage`` in a ContextVar;
-route handlers call ``emit("xml_load", ...)`` without caring whether
+route handlers call ``emit("metadata_load", ...)`` without caring whether
 statistics are enabled — with no tracker installed the call is a no-op.
 """
 

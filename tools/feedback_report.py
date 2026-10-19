@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print a read-only overview of user feedback for the XML viewer.
+"""Print a read-only overview of user feedback for the OData viewer.
 
 Reads the `feedback` table (backend/sql/feedback.sql) in the Postgres on the
 Hetzner VPS and prints: totals, per-day counts, pages, files that were loaded
@@ -7,10 +7,10 @@ when feedback was sent, app versions, and the latest messages. No writes.
 
 Connection (env-overridable; defaults match the Cloud Run deploy):
     FEEDBACK_DB_HOST  (default 62.238.116.11)
-    FEEDBACK_DB_NAME  (default xmlviewer_stats)
-    FEEDBACK_DB_USER  (default xmlviewer)
+    FEEDBACK_DB_NAME  (default odataviewer_stats)
+    FEEDBACK_DB_USER  (default odataviewer)
 Password: $FEEDBACK_DB_PASSWORD or $PGPASSWORD, else
-    gcloud secrets versions access latest --secret=xmlviewer-feedback-db-password --project xml-viewer-online
+    gcloud secrets versions access latest --secret=odataviewer-db-password --project odata-viewer-online
 
 Requires: pip install --user "psycopg[binary]"
 
@@ -34,10 +34,10 @@ except ImportError:
     sys.exit('psycopg not installed. Run:  pip install --user "psycopg[binary]"')
 
 DEFAULT_HOST = "62.238.116.11"
-DEFAULT_NAME = "xmlviewer_stats"
-DEFAULT_USER = "xmlviewer"
-PW_SECRET = "xmlviewer-feedback-db-password"
-GCP_PROJECT = "xml-viewer-online"
+DEFAULT_NAME = "odataviewer_stats"
+DEFAULT_USER = "odataviewer"
+PW_SECRET = "odataviewer-db-password"
+GCP_PROJECT = "odata-viewer-online"
 
 
 def resolve_password() -> str:
@@ -71,7 +71,7 @@ def print_table(cur) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="XML viewer feedback overview (read-only).")
+    ap = argparse.ArgumentParser(description="OData viewer feedback overview (read-only).")
     ap.add_argument("--days", type=int, default=None, help="restrict to the last N days")
     ap.add_argument("--limit", type=int, default=20, help="number of latest messages (default 20)")
     ap.add_argument("--full", action="store_true", help="print full message text, one block per entry")
@@ -86,7 +86,7 @@ def main() -> None:
         f"password={resolve_password()} sslmode=require"
     )
     scope = f"last {args.days} days" if args.days else "all time"
-    print(f"XML Online Viewer — feedback overview ({scope})")
+    print(f"OData Online Viewer — feedback overview ({scope})")
 
     queries = [
         ("Totals", f"""
@@ -101,8 +101,8 @@ def main() -> None:
         ("Pages", f"""
             SELECT coalesce(page,'?') page, count(*) n
             FROM feedback {where} GROUP BY 1 ORDER BY 2 DESC LIMIT 10;"""),
-        ("Files loaded when feedback was sent", f"""
-            SELECT coalesce(xml_name,'-') xml, coalesce(xsd_name,'-') xsd, count(*) n
+        ("Services loaded when feedback was sent", f"""
+            SELECT coalesce(service_name,'-') service, coalesce(entity_name,'-') node, count(*) n
             FROM feedback {where} GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10;"""),
         ("App versions", f"""
             SELECT coalesce(app_version,'?') version, count(*) n
@@ -123,16 +123,16 @@ def main() -> None:
         with conn.cursor() as cur:
             if args.full:
                 cur.execute(f"""
-                    SELECT received_at::timestamp(0), message, email, page, xml_name, xsd_name,
+                    SELECT received_at::timestamp(0), message, email, page, service_name, entity_name,
                            error_detail, user_agent, app_version
                     FROM feedback {where} ORDER BY received_at DESC LIMIT %s;""", (args.limit,))
                 rows = cur.fetchall()
                 if not rows:
                     print("(no rows)")
-                for at, msg, email, page, xml, xsd, err, ua, ver in rows:
+                for at, msg, email, page, service, node, err, ua, ver in rows:
                     print(f"\n--- {at}  v{ver or '?'}  page={page or '-'}  email={email or '-'}")
-                    if xml or xsd:
-                        print(f"    xml={xml or '-'}  xsd={xsd or '-'}")
+                    if service or node:
+                        print(f"    service={service or '-'}  node={node or '-'}")
                     if err:
                         print(f"    error: {err}")
                     if ua:
@@ -141,7 +141,7 @@ def main() -> None:
             else:
                 cur.execute(f"""
                     SELECT received_at::timestamp(0) at, left(message, 100) message, email, page,
-                           xml_name, left(error_detail, 60) error_detail
+                           service_name, left(error_detail, 60) error_detail
                     FROM feedback {where} ORDER BY received_at DESC LIMIT %s;""", (args.limit,))
                 print_table(cur)
 

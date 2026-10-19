@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print a read-only usage overview of the Cloud Run service `xml-online-viewer`.
+"""Print a read-only usage overview of the Cloud Run service `odata-online-viewer`.
 
 Sources (both via gcloud credentials, no writes):
   * Cloud Monitoring `run.googleapis.com/request_count` — totals, per-day
@@ -9,7 +9,7 @@ Sources (both via gcloud credentials, no writes):
     top scanner paths + IPs, and a breakdown of `/api/*` calls by method + path
     (capped by --limit).
 
-Requires: gcloud (authenticated, access to project xml-viewer-online).
+Requires: gcloud (authenticated, access to project odata-viewer-online).
 
 Usage:
     python3 tools/usage_report.py                 # last 30 days
@@ -31,24 +31,23 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-GCP_PROJECT = "xml-viewer-online"
-SERVICE = "xml-online-viewer"
+GCP_PROJECT = "odata-viewer-online"
+SERVICE = "odata-online-viewer"
 METRIC = "run.googleapis.com/request_count"
 
 # Paths that exist in backend/app/api; everything else under /api/ is scanner noise.
 KNOWN_API_PREFIXES = (
-    "/api/xml/",
-    "/api/xsd/",
-    "/api/validate",
-    "/api/fundsxml/",
+    "/api/metadata/",
+    "/api/data/",
+    "/api/samples",
     "/api/feedback",
     "/api/health",
     "/api/report",
 )
 
 
-# Client-side routes served by the SPA (keep in sync with SPA_ROUTES in backend/app/main.py).
-SPA_ROUTES = {"/", "/index.html", "/fundsxml"}
+# Client-side routes served by the SPA (keep in sync with ROUTE_META in backend/app/spa.py).
+SPA_ROUTES = {"/", "/index.html", "/samples", "/about"}
 
 # Well-known files that browsers/crawlers legitimately request.
 STATIC_RE = re.compile(
@@ -232,7 +231,7 @@ def main() -> None:
     ap.add_argument("--no-logs", action="store_true", help="skip the Cloud Logging API breakdown")
     args = ap.parse_args()
 
-    print(f"XML Online Viewer — Cloud Run usage ({SERVICE}, last {args.days} days)\n")
+    print(f"OData Online Viewer — Cloud Run usage ({SERVICE}, last {args.days} days)\n")
     metrics_section(args.days)
     if not args.no_logs:
         logs_section(args.days, args.limit)
