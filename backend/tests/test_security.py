@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from lxml import etree
 
 from app.main import app
 from app.parser import security
@@ -127,3 +128,39 @@ def test_other_input_is_left_for_the_fetcher_to_reject(url: str) -> None:
     assert normalize_url(url) == url
     with pytest.raises(SecurityError, match="only http"):
         fetch_url(url)
+
+
+SPLIT_COMMENT_SUBSET = '<!ENTITY a "<!--"><!ENTITY x SYSTEM "file://{path}"><!ENTITY b "-->">'
+
+
+def test_comment_split_across_entity_values_is_rejected(tmp_path) -> None:
+    canary = tmp_path / "canary.txt"
+    canary.write_text("CANARY-SECRET")
+    doc = f"<!DOCTYPE r [{SPLIT_COMMENT_SUBSET.format(path=canary)}]><r>&x;</r>".encode()
+    with pytest.raises(SecurityError):
+        inspect_dtd(doc)
+
+
+def test_internal_entity_parser_never_reads_external_entities(tmp_path) -> None:
+    canary = tmp_path / "canary.txt"
+    canary.write_text("CANARY-SECRET")
+    doc = f'<!DOCTYPE r [<!ENTITY x SYSTEM "file://{canary}">]><r>&x;</r>'.encode()
+    with pytest.raises(etree.XMLSyntaxError):
+        etree.fromstring(doc, security.make_parser(internal_entities=True))
+
+
+def test_comment_split_xxe_through_the_api(client: TestClient, tmp_path) -> None:
+    canary = tmp_path / "canary.txt"
+    canary.write_text("CANARY-SECRET")
+    subset = SPLIT_COMMENT_SUBSET.format(path=canary)
+    doc = (
+        f"<!DOCTYPE edmx:Edmx [{subset}]>"
+        '<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"><edmx:DataServices>'
+        '<Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="N">'
+        '<EntityType Name="T"><Key><PropertyRef Name="Id"/></Key><Property Name="Id" Type="Edm.Int32"/>'
+        '<Annotation Term="Core.Description" String="&x;"/></EntityType>'
+        "</Schema></edmx:DataServices></edmx:Edmx>"
+    )
+    r = client.post("/api/metadata/text", json={"content": doc, "filename": "x.xml"})
+    assert r.status_code == 400
+    assert "CANARY-SECRET" not in r.text
