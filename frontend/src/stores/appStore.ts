@@ -46,6 +46,8 @@ export interface DataState {
   local: boolean;
   /** Levels left by drilling into a cell, outermost first; Back restores the last one. */
   trail: DrillLevel[];
+  /** Run `options` as soon as the explorer mounts (a shared query link was opened). */
+  pendingRun: boolean;
 }
 
 export type DrillLevel = Pick<DataState, "entitySet" | "options" | "result" | "error" | "pageStack" | "rawView" | "local">;
@@ -115,6 +117,7 @@ export const useApp = create<AppState>((set, get) => ({
     rawView: false,
     local: false,
     trail: [],
+    pendingRun: false,
   },
   sourceLine: null,
 
@@ -141,6 +144,7 @@ export const useApp = create<AppState>((set, get) => ({
         rawView: false,
         local: false,
         trail: [],
+        pendingRun: false,
       },
       sourceLine: null,
     });
@@ -204,6 +208,7 @@ export const useApp = create<AppState>((set, get) => ({
         pageStack: [],
         local: false,
         trail: [],
+        pendingRun: false,
       },
     }),
 

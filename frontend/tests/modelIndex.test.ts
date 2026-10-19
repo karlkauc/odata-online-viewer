@@ -101,9 +101,9 @@ describe("deepLink", () => {
   it("round-trips selection and view through the hash", () => {
     const hash = buildHash("type:Trip.Person", "diagram");
     expect(hash).toBe("#/id/type%3ATrip.Person?view=diagram");
-    expect(readHash(hash)).toEqual({ id: "type:Trip.Person", view: "diagram" });
-    expect(readHash("#/id/?view=data")).toEqual({ id: null, view: "data" });
-    expect(readHash("#/other")).toEqual({ id: null, view: null });
+    expect(readHash(hash)).toEqual({ id: "type:Trip.Person", view: "diagram", query: {} });
+    expect(readHash("#/id/?view=data")).toEqual({ id: null, view: "data", query: {} });
+    expect(readHash("#/other")).toEqual({ id: null, view: null, query: {} });
     expect(readHash("#/id/x?view=bogus").view).toBeNull();
   });
 

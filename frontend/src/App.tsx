@@ -15,11 +15,11 @@ import { TextView } from "./components/TextView/TextView";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Uploader } from "./components/Uploader";
 import { urlOrigin } from "./lib/serviceUrl";
-import { readArrival, readHash, writeHash } from "./lib/deepLink";
-import { GITHUB_REPO_URL, SPONSOR_GO, XML_VIEWER_URL, XSD_VIEWER_URL, openAbout, openFeedback, openSearch } from "./lib/links";
+import { buildHash, linkQuery, readArrival, readHash, replaceHash, writeHash } from "./lib/deepLink";
+import { GITHUB_REPO_URL, SPONSOR_GO, XML_VIEWER_GO, XSD_VIEWER_GO, openAbout, openFeedback, openSearch } from "./lib/links";
 import { useDismiss } from "./lib/useDismiss";
 import { LG_QUERY, MD_QUERY, matchesMediaQuery, useMediaQuery } from "./lib/useMediaQuery";
-import { useApp, type ViewMode } from "./stores/appStore";
+import { DEFAULT_QUERY, useApp, type ViewMode } from "./stores/appStore";
 import type { Auth, Sample, ServiceModel } from "./types/model";
 import { Icon, type IconName } from "./components/Icon";
 
@@ -104,8 +104,15 @@ export default function App() {
       setTreeOpen(false);
       if (!matchesMediaQuery(MD_QUERY)) setFilesOpen(false);
       const hash = pendingHash.current;
-      pendingHash.current = { id: null, view: null };
+      pendingHash.current = { id: null, view: null, query: {} };
       if (hash.id && useApp.getState().index?.byId.has(hash.id)) setSelected(hash.id);
+      // A shared query: open the explorer on that set and run it once.
+      const shared = hash.view === "data" ? useApp.getState().index?.entitySets.find(({ set }) => set.id === hash.id) : undefined;
+      if (shared) {
+        const { openData, setData } = useApp.getState();
+        openData(shared.set.name);
+        setData({ options: { ...DEFAULT_QUERY, ...hash.query }, pendingRun: true });
+      }
       if (hash.view) setViewMode(hash.view);
       else setViewMode("details");
     },
@@ -157,11 +164,20 @@ export default function App() {
       });
   }, [apply]);
 
-  // Selection and view live in the hash so the page is shareable.
+  // Selection and view live in the hash so the page is shareable; in the data
+  // view the last query that ran on a top-level entity set does too. The
+  // selector returns a string so App only re-renders when the link changes.
+  const dataLink = useApp((s) => {
+    const { data } = s;
+    if (s.viewMode !== "data" || !data.result || data.local || data.trail.length > 0) return null;
+    const set = s.index?.entitySets.find((e) => e.set.name === data.entitySet);
+    return set ? buildHash(set.set.id, "data", linkQuery(data.options, DEFAULT_QUERY)) : null;
+  });
   useEffect(() => {
     if (!model) return;
-    writeHash(selectedId, viewMode === "details" ? null : viewMode);
-  }, [model, selectedId, viewMode]);
+    if (dataLink) replaceHash(dataLink);
+    else writeHash(selectedId, viewMode === "details" ? null : viewMode);
+  }, [model, selectedId, viewMode, dataLink]);
 
   const secondaryActions = useMemo<HeaderAction[]>(
     () => [
@@ -170,8 +186,8 @@ export default function App() {
             <Icon name="feedback" /> Feedback
           </>
         ), title: "Send feedback", ariaLabel: "Send feedback", onClick: openFeedback },
-      { key: "xsd", label: "XSD Viewer ↗", title: "Sister tool for XML Schemas", ariaLabel: "Open the XSD Viewer", href: XSD_VIEWER_URL, external: true },
-      { key: "xml", label: "XML Viewer ↗", title: "Sister tool for XML documents", ariaLabel: "Open the XML Viewer", href: XML_VIEWER_URL, external: true },
+      { key: "xsd", label: "XSD Viewer ↗", title: "Sister tool for XML Schemas", ariaLabel: "Open the XSD Viewer", href: XSD_VIEWER_GO, external: true },
+      { key: "xml", label: "XML Viewer ↗", title: "Sister tool for XML documents", ariaLabel: "Open the XML Viewer", href: XML_VIEWER_GO, external: true },
       { key: "sponsor", label: (
           <>
             <Icon name="heart" className="text-rose-500" /> Support ↗

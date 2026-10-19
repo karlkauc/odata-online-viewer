@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { ApiError, exportEntitySet, queryEntitySet } from "../../api/client";
+import { ApiError, exportEntitySet, pingShare, queryEntitySet } from "../../api/client";
+import { SNIPPET_LABELS, snippet, type SnippetLanguage } from "../../lib/copyAsCode";
+import { linkQuery, shareLink } from "../../lib/deepLink";
 import { drillPath, localResult, resolvePath, rowLinks } from "../../lib/drillPath";
 import { effectiveMembers, shortType } from "../../lib/modelIndex";
 import { nextSort, orderbyFor, parseOrderby, sortableType, sortRows, type Sort } from "../../lib/tableSort";
@@ -92,6 +94,47 @@ function SelectPicker({ fields, selected, onChange }: { fields: { name: string; 
   );
 }
 
+/** "Copy as" curl / fetch / C# / Python / Power Query; credentials become placeholders. */
+function CopyAsMenu({ url, basicAuth, v4 }: { url: string; basicAuth: boolean; v4: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { copied, copy } = useCopy();
+  useDismiss(ref, open, useCallback(() => setOpen(false), []));
+  const pick = (language: SnippetLanguage) => {
+    setOpen(false);
+    void copy(snippet(language, { url, basicAuth, v4 }));
+  };
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button type="button" className="btn text-xs py-0.5" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
+        {copied ? (
+          <Icon name="check" size={14} />
+        ) : (
+          <>
+            Copy as <Icon name="chevronDown" size={12} />
+          </>
+        )}
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1 text-xs">
+          {(Object.keys(SNIPPET_LABELS) as SnippetLanguage[]).map((language) => (
+            <button
+              key={language}
+              type="button"
+              role="menuitem"
+              className="block w-full text-left px-2 py-1.5 touch:py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
+              onClick={() => pick(language)}
+            >
+              {SNIPPET_LABELS[language]}
+            </button>
+          ))}
+          {basicAuth && <p className="px-2 py-1 text-slate-500 border-t border-slate-100 dark:border-slate-700 mt-1">Credentials appear as USER / PASSWORD placeholders.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExportMenu({ rows, all, busy, onExport }: { rows: number; all: boolean; busy: boolean; onExport: (scope: "page" | "all") => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -142,6 +185,7 @@ export function DataExplorer() {
   const setSelected = useApp((s) => s.setSelected);
   const setViewMode = useApp((s) => s.setViewMode);
   const { copied, copy } = useCopy();
+  const shareCopy = useCopy();
   const [draft, setDraft] = useState<QueryOptions>(data.options);
   const [needAuth, setNeedAuth] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -183,6 +227,13 @@ export function DataExplorer() {
     },
     [model, data.entitySet, data.pageStack, auth, setData],
   );
+
+  // Opened from a shared query link: run it once.
+  useEffect(() => {
+    if (!data.pendingRun || !model?.service_root) return;
+    setData({ pendingRun: false });
+    void run(data.options, null, []);
+  }, [data.pendingRun, data.options, model, run, setData]);
 
   const submit = (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -304,6 +355,8 @@ export function DataExplorer() {
   }
 
   const result = data.result;
+  // Links never carry credentials, and a drilled-down value has no query to share.
+  const shareable = !model.auth_used && auth === null && !data.local && data.trail.length === 0 && current !== null;
   // An unpaged answer (Orders(1)/Tags) is complete and ignores $skip.
   const unpaged = result?.paged === false;
   const offset = unpaged ? 0 : data.options.skip;
@@ -481,6 +534,20 @@ export function DataExplorer() {
             <button type="button" className="btn text-xs py-0.5 shrink-0" onClick={() => void copy(result.request_url)}>
               {copied ? <Icon name="check" size={14} /> : "Copy URL"}
             </button>
+            {result.request_url && <CopyAsMenu url={result.request_url} basicAuth={auth !== null} v4={v4} />}
+            {shareable && (
+              <button
+                type="button"
+                className="btn text-xs py-0.5 shrink-0"
+                title="Copy a link that opens this query for anyone"
+                onClick={() => {
+                  void shareCopy.copy(shareLink(model.service_root, current?.set.id ?? null, "data", linkQuery(data.options, DEFAULT_QUERY)));
+                  pingShare("query");
+                }}
+              >
+                {shareCopy.copied ? <Icon name="check" size={14} /> : "Share query"}
+              </button>
+            )}
           </span>
           <span className="flex items-center gap-1 ml-auto">
             {result.rows.length > 0 && <ExportMenu rows={result.rows.length} all={!data.local} busy={exporting || data.loading} onExport={(scope) => void exportRows(scope)} />}
