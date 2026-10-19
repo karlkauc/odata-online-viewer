@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { listSamples } from "../api/client";
-import { XML_VIEWER_URL, XSD_VIEWER_URL } from "../lib/links";
+import { fetchFaq, listSamples, type FaqEntry } from "../api/client";
 import type { Sample } from "../types/model";
+import { FamilyFooter } from "./FamilyFooter";
 import { Icon, type IconName } from "./Icon";
 
 const FEATURED = ["northwind-v4", "trippin-v4", "jdbcodata-demo"];
@@ -11,11 +11,16 @@ export function Landing({ onSample }: { onSample: (sample: Sample) => Promise<vo
   const [samples, setSamples] = useState<Sample[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [faq, setFaq] = useState<FaqEntry[]>([]);
 
   useEffect(() => {
     listSamples()
       .then(setSamples)
       .catch(() => setSamples([]));
+    // Same entries the server puts into the static shell (backend/app/content/faq.toml).
+    fetchFaq()
+      .then(setFaq)
+      .catch(() => setFaq([]));
   }, []);
 
   const featured = FEATURED.map((id) => samples.find((s) => s.id === id)).filter((s): s is Sample => Boolean(s));
@@ -84,49 +89,14 @@ export function Landing({ onSample }: { onSample: (sample: Sample) => Promise<vo
 
         <section className="mt-10 space-y-4 text-sm text-slate-600 dark:text-slate-400">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Good to know</h3>
-          <details className="group">
-            <summary className="cursor-pointer font-medium text-slate-800 dark:text-slate-200">What is OData?</summary>
-            <p className="mt-1">
-              OData (Open Data Protocol) is an OASIS standard for REST APIs over data models. A service publishes a
-              <code> $metadata</code> document that describes its entity types, keys, relationships and operations, and clients such as
-              Excel, Power BI, SAP Fiori or any HTTP library can query it with a standard URL grammar (<code>$filter</code>,
-              <code>$select</code>, <code>$expand</code>, …). Version 2 is still common in SAP landscapes; version 4 is the current standard.
-            </p>
-          </details>
-          <details>
-            <summary className="cursor-pointer font-medium text-slate-800 dark:text-slate-200">Where do I find the $metadata URL?</summary>
-            <p className="mt-1">
-              Append <code>/$metadata</code> to the service root, for example{" "}
-              <code>https://services.odata.org/V4/Northwind/Northwind.svc/$metadata</code>. You can paste either form here; the viewer
-              figures out the rest and follows redirects.
-            </p>
-          </details>
-          <details>
-            <summary className="cursor-pointer font-medium text-slate-800 dark:text-slate-200">Why not call the service from the browser directly?</summary>
-            <p className="mt-1">
-              Most OData services send no CORS headers, and many require HTTP Basic authentication. This site therefore fetches the
-              metadata and the data through its own backend, which only forwards credentials over HTTPS, keeps parsed metadata in memory
-              for a short while and stores neither documents nor credentials. Internal or intranet addresses cannot be reached from here.
-            </p>
-          </details>
-          <details>
-            <summary className="cursor-pointer font-medium text-slate-800 dark:text-slate-200">Which OData versions are supported?</summary>
-            <p className="mt-1">
-              OData V2 and V3 (EDMX 1.0 with associations and function imports, SAP annotations), V4 and V4.01 (EDMX 4.0 and CSDL JSON,
-              vocabularies, bound functions and actions, singletons, containment).
-            </p>
-          </details>
-          <p className="pt-2 text-xs">
-            Sister tools by the same author:{" "}
-            <a className="underline" href={XSD_VIEWER_URL} target="_blank" rel="noopener noreferrer">
-              Online XSD Viewer
-            </a>{" "}
-            and{" "}
-            <a className="underline" href={XML_VIEWER_URL} target="_blank" rel="noopener noreferrer">
-              XML Online Viewer
-            </a>
-            . Free, open source, no account, no ads.
-          </p>
+          {faq.map((entry) => (
+            <details key={entry.question}>
+              <summary className="cursor-pointer font-medium text-slate-800 dark:text-slate-200">{entry.question}</summary>
+              {/* Our own Markdown, rendered server-side with raw HTML disabled. */}
+              <div className="mt-1 faq-answer" dangerouslySetInnerHTML={{ __html: entry.answer_html }} />
+            </details>
+          ))}
+          <FamilyFooter className="pt-2 text-xs" />
         </section>
       </div>
     </div>

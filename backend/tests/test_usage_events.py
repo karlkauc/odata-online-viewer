@@ -110,3 +110,14 @@ class TestRow:
         assert row[COLUMNS.index("event_type")] == "page_view"
         assert row[COLUMNS.index("path")] == "/"
         assert INSERT_SQL.count("%s") == len(COLUMNS)
+
+
+def test_utm_fields_keep_only_short_slugs() -> None:
+    from app.usage.events import utm_fields
+
+    assert utm_fields({"utm_source": "XSD-Viewer", "utm_medium": "sister", "other": "x"}) == {
+        "utm_source": "xsd-viewer",
+        "utm_medium": "sister",
+    }
+    assert utm_fields({"utm_source": "a b", "utm_campaign": "x" * 65}) == {}
+    assert utm_fields({}) == {}

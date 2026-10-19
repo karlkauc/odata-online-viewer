@@ -1,5 +1,7 @@
 # OData Online Viewer
 
+[![Try it live](https://img.shields.io/badge/try%20it%20live-odata--viewer.online-2563eb)](https://www.odata-viewer.online/?utm_source=github&utm_medium=readme)
+
 **See what an OData service contains, how its entities relate, and what data it returns —
 right in your browser. No install, no account, nothing stored.**
 
@@ -54,8 +56,20 @@ SharePoint, Business Central and any other OData API.
   and forgotten when you close the tab.
 - **No account, no login, no tracking scripts.**
 - **You can run it yourself.** The whole app is a single Docker container — see
-  [docs/TECHNICAL.md](docs/TECHNICAL.md) for self-hosting, e.g. to reach services inside your
+  [Self-host with Docker](#self-host-with-docker) below, e.g. to reach services inside your
   company network.
+
+## Self-host with Docker
+
+Keep credentials inside your network, or reach on-premise services (SAP Gateway, intranet APIs)
+that the public site cannot:
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/karlkauc/odata-online-viewer:latest
+```
+
+Then open <http://localhost:8080>. Configuration options are listed in
+[docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## No warranty
 

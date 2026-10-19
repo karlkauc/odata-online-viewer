@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "odata-online-viewer"
 version = "0.1.0"
 description = "OData Online Viewer: visualize OData $metadata (V2, V3, V4) as tree, ER diagram and source, and explore entity sets."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Karl Kauc" }]
 
 dependencies = [
@@ -20,6 +20,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "geoip2>=4.8",
     "XlsxWriter>=3.2",
+    "markdown-it-py>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +39,7 @@ include = ["app*"]
 
 [tool.setuptools.package-data]
 "app.odata.samples" = ["*.xml", "*.json"]
+"app.content" = ["template.html", "faq.toml", "pages/**/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -46,7 +48,7 @@ addopts = "-ra --strict-markers"
 
 [tool.ruff]
 line-length = 110
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "C4", "SIM"]

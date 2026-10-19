@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchHealth } from "../api/client";
-import { EVENT_OPEN_ABOUT, GITHUB_REPO_URL, ODATA_ORG_URL, SPONSOR_GO, XML_VIEWER_URL, XSD_VIEWER_URL, openFeedback } from "../lib/links";
+import { EVENT_OPEN_ABOUT, GITHUB_REPO_URL, ODATA_ORG_URL, SPONSOR_GO, openFeedback } from "../lib/links";
+import { FamilyFooter } from "./FamilyFooter";
 import { Icon } from "./Icon";
 
 /**
@@ -115,14 +116,7 @@ export function AboutDialog() {
             {" — the protocol specification and ecosystem"}
           </li>
           <li>
-            <a className={linkClass} href={XSD_VIEWER_URL} target="_blank" rel="noopener noreferrer">
-              XSD Viewer
-            </a>
-            {" and "}
-            <a className={linkClass} href={XML_VIEWER_URL} target="_blank" rel="noopener noreferrer">
-              XML Viewer
-            </a>
-            {" — sister tools by the same author"}
+            <FamilyFooter />
           </li>
           <li>
             <a className={linkClass} href={SPONSOR_GO} target="_blank" rel="noopener noreferrer">

@@ -1,4 +1,4 @@
-import { downloadExport } from "../api/client";
+import { downloadExport, pingShare } from "../api/client";
 import { shareLink } from "../lib/deepLink";
 import { useCopy } from "../lib/useCopy";
 import { useApp } from "../stores/appStore";
@@ -80,7 +80,15 @@ export function ServiceOverview() {
           <Icon name="download" /> Mermaid ER
         </button>
         {share && (
-          <button type="button" className="btn" onClick={() => void copy(share)} title={share}>
+          <button
+            type="button"
+            className="btn"
+            title={share}
+            onClick={() => {
+              void copy(share);
+              pingShare("service");
+            }}
+          >
             <Icon name={copied ? "check" : "link"} />
             {copied ? "Link copied" : "Copy share link"}
           </button>

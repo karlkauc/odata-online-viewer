@@ -1,0 +1,43 @@
+# Home page FAQ: rendered into the static shell (crawlers, no-JS), as FAQPage
+# JSON-LD, and by the React landing page via /api/content/faq. Answers are Markdown.
+
+[[faq]]
+q = "What is OData?"
+a = """
+OData (Open Data Protocol) is an OASIS standard for REST APIs over data models. A service publishes a
+`$metadata` document that describes its entity types, keys, relationships and operations, and clients such as
+Excel, Power BI, SAP Fiori or any HTTP library can query it with a standard URL grammar (`$filter`,
+`$select`, `$expand`, …). Version 2 is still common in SAP landscapes; version 4 is the current standard.
+"""
+
+[[faq]]
+q = "Where do I find the $metadata URL?"
+a = """
+Append `/$metadata` to the service root, for example
+`https://services.odata.org/V4/Northwind/Northwind.svc/$metadata`. You can paste either form here; the viewer
+figures out the rest and follows redirects.
+"""
+
+[[faq]]
+q = "Why not call the service from the browser directly?"
+a = """
+Most OData services send no CORS headers, and many require HTTP Basic authentication. This site therefore fetches the
+metadata and the data through its own backend, which only forwards credentials over HTTPS, keeps parsed metadata in memory
+for a short while and stores neither documents nor credentials. Internal or intranet addresses cannot be reached from here.
+"""
+
+[[faq]]
+q = "Are my credentials stored?"
+a = """
+No. Basic Auth credentials stay in the browser tab's memory and travel with each request to this site's backend,
+which forwards them to the service over HTTPS only and drops them when a redirect leads to another host. They are
+never written to disk, logs or the usage statistics, and share links are only offered for services without credentials.
+If you would rather not send them anywhere, [run the viewer yourself with Docker](https://github.com/karlkauc/odata-online-viewer#self-host-with-docker).
+"""
+
+[[faq]]
+q = "Which OData versions are supported?"
+a = """
+OData V2 and V3 (EDMX 1.0 with associations and function imports, SAP annotations), V4 and V4.01 (EDMX 4.0 and CSDL JSON,
+vocabularies, bound functions and actions, singletons, containment).
+"""

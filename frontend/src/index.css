@@ -29,6 +29,15 @@
 }
 
 @layer components {
+  /* FAQ answers arrive as HTML rendered from Markdown (Landing). */
+  .faq-answer a {
+    @apply underline;
+  }
+
+  .faq-answer p + p {
+    @apply mt-2;
+  }
+
   .panel {
     @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800;
   }

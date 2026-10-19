@@ -17,13 +17,17 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app import __version__
+from app.api.content import router as content_router
 from app.api.data import router as data_router
 from app.api.feedback import router as feedback_router
 from app.api.go import router as go_router
 from app.api.metadata import router as metadata_router
 from app.api.samples import router as samples_router
+from app.api.usage import router as usage_router
 from app.config import settings
+from app.content.pages import register_provider
 from app.logging_setup import configure_logging, new_request_id, request_id_var
+from app.odata.sample_pages import sample_pages
 from app.rate_limit import client_ip, limiter
 from app.spa import mount_spa
 from app.usage.context import RequestUsage, UsageTracker, bind, unbind
@@ -255,6 +259,9 @@ app.include_router(metadata_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(samples_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
+app.include_router(usage_router, prefix="/api")
+app.include_router(content_router, prefix="/api")
+register_provider(sample_pages)  # /samples/<id> content pages
 app.include_router(go_router)  # /go/… redirects, registered before the SPA catch-all
 
 # --- Static frontend ------------------------------------------------------

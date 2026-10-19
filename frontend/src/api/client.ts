@@ -274,3 +274,20 @@ export interface HealthResponse {
 export async function fetchHealth(): Promise<HealthResponse> {
   return handle<HealthResponse>(await fetch(`${API_BASE}/health`));
 }
+
+// --- Content and usage ----------------------------------------------------
+
+export interface FaqEntry {
+  question: string;
+  /** Rendered from the site's own Markdown (backend/app/content/faq.toml). */
+  answer_html: string;
+}
+
+export async function fetchFaq(): Promise<FaqEntry[]> {
+  return handle<FaqEntry[]>(await fetch(`${API_BASE}/content/faq`));
+}
+
+/** Count a copied share link (the copy itself never reaches the server). Fire and forget. */
+export function pingShare(source: "service" | "query"): void {
+  void fetch(`${API_BASE}/usage/share?source=${source}`, { method: "POST", keepalive: true }).catch(() => undefined);
+}

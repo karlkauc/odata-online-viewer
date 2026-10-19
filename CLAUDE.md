@@ -22,7 +22,8 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
     `sap:`/`m:` attributes become annotations (`term="sap:label"`). Labels/descriptions are
     picked from `Common.Label`, `Core.Description`, `sap:label`, `sap:quickinfo`. Node ids are
     stable strings (`type:NS.T`, `prop:NS.T/P`, `set:NS.Container/S`, `op:NS.F#0`, …) shared
-    with the frontend (`lib/modelIndex.ts`, deep links).
+    with the frontend (`lib/modelIndex.ts`, deep links: `#/id/<id>?view=data&filter=…&select=…&orderby=…&top=…&skip=…`
+    opens the explorer on that set and runs the query — `lib/deepLink.ts`, `odata/sample_pages.py`).
   - `service_url.py` normalises what the visitor pasted (service root ↔ `$metadata`, keeps
     `sap-client`, drops `$format`) and derives the service root *after* redirects (TripPin's
     session segment). `join_service_path` encodes spaces as `%20`, not `+`.
@@ -42,7 +43,13 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   `/data/raw`), `samples.py`, `feedback.py`, `go.py`, `_common.py` (`reject()` — never emit twice).
 - `backend/app/spa.py` — SPA shell with per-route title/description/canonical (`ROUTE_META`,
   `SITE_ORIGIN` env). **New client routes must be added there**; everything else is a 404
-  (no fake page views from scanners). `index.html` → route `""`.
+  (no fake page views from scanners). `index.html` → route `""`. Also `/sitemap.xml` (generated)
+  and `/<INDEXNOW_KEY>.txt`; the home FAQ replaces `<!--faq-->`/`<!--faq-jsonld-->` in `index.html`.
+- `backend/app/content/` — server-rendered pages without JS (SEO): `pages/**/*.md` with TOML front
+  matter between `+++`, served at their path; `faq.toml` (home FAQ, also `GET /api/content/faq`);
+  `site.py` holds the per-site constants and the FreeXmlToolkit family list — the rest of the
+  package is shared with the sibling viewers, keep it in step. `app/odata/sample_pages.py` adds
+  `/samples/<id>` via `register_provider`. Links into the app use the deep-link format above.
 - `backend/app/parser/security.py` — hardened lxml parser, `inspect_dtd`, and `fetch_url`
   (SSRF guard: public IPs only, pinned connection, tries every resolved address IPv4-first,
   redirect cap, byte cap, `headers=` for Accept/Authorization, `FetchHttpError` with status).
@@ -70,7 +77,11 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   `element_count` = entity types, `type_count` = complex+enum, `odata_version`), `data_query`
   (source query|next|raw, `schema_name` = service root, `target_namespace` = entity set,
   `element_count` = rows), `export` (source markdown|mermaid|source; `xlsx_page`|`xlsx_all`
-  with `schema_name` = service root, `target_namespace` = entity set, `element_count` = rows).
+  with `schema_name` = service root, `target_namespace` = entity set, `element_count` = rows),
+  `share` (source service|query, pinged by the share buttons). `page_view` stores `utm_source`/
+  `utm_medium`/`utm_campaign` (slugs only); `/go/xsd-viewer` etc. send visitors to the sister
+  sites with `utm_source=odata-viewer` (the sites send no Referer). **New usage columns must be
+  added to the DB (`backend/sql/usage_stats.sql`) before deploying** — the insert names every column.
   Never URLs with
   credentials, never document content. Column `odata_version` is new compared to the siblings
   (`backend/sql/usage_stats.sql`). Feedback columns: `service_name`, `entity_name`.

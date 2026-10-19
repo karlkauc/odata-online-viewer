@@ -74,6 +74,7 @@ All settings are environment variables (see `backend/app/config.py`).
 | `SITE_ORIGIN` | `https://www.odata-viewer.online` | canonical URLs; other hosts redirect here on the public site |
 | `CORS_ALLOW_ORIGINS` | *(none)* | extra origins allowed to call the API |
 | `TRUSTED_PROXY_HOPS` | `1` | proxies in front of the app (client IP for rate limits/stats) |
+| `INDEXNOW_KEY` | empty | served as `/<key>.txt` for IndexNow; `tools/indexnow_ping.py` submits the sitemap |
 | `STATIC_DIR` | `/app/static` | built frontend |
 | `LOG_LEVEL` | `INFO` | |
 | `USAGE_DB_URL` & co. | *(off)* | anonymous usage statistics, see [USAGE_STATS.md](USAGE_STATS.md) |
@@ -92,21 +93,34 @@ Interactive docs at `/api/docs`. Main endpoints:
 | `POST /api/data/query` | one page of an entity set, normalised V2/V4 |
 | `POST /api/data/raw` | any resource path below the service root, JSON as is |
 | `POST /api/data/export` | Excel export of the shown page or of all matching rows |
+| `GET /api/content/faq` | the home FAQ (same source as the static shell) |
+| `POST /api/usage/share?source=` | counts a copied share link (no body) |
 
 Ids are content hashes; an expired cache entry is transparently reloaded by the frontend.
+
+## Content pages
+
+Besides the SPA, the backend serves plain HTML pages that work without JavaScript, so search
+engines and visitors from a search see real text: `backend/app/content/pages/**/*.md` (TOML front
+matter between `+++` lines: `title`, `description`, `heading`, `lastmod`, `cta_label`/`cta_href`,
+`[[faq]]`) at the matching path, and one page per bundled sample at `/samples/<id>`
+(`app/odata/sample_pages.py`). They share `template.html` and `/content.css`. `/sitemap.xml` is
+generated from `ROUTE_META` plus these pages. The home FAQ (`app/content/faq.toml`) goes into the
+static shell (with FAQPage JSON-LD) and is fetched by the React landing page.
 
 ## Repository layout
 
 ```
 backend/   FastAPI app — app/odata/ (CSDL parser, data client, exports, Excel export),
            app/api/ (metadata, data, samples, feedback, go), app/parser/ (hardened lxml, SSRF-guarded fetch),
-           app/spa.py (SPA shell with per-route meta), app/usage/ (anonymous usage statistics), tests/
+           app/spa.py (SPA shell with per-route meta, sitemap), app/content/ (server-rendered Markdown pages
+           and the home FAQ), app/usage/ (anonymous usage statistics), tests/
 frontend/  React 18 + TypeScript + Vite + Tailwind — src/components/{ModelTree,DetailPanel,DiagramView,TextView,DataExplorer,…},
            src/lib/modelIndex.ts (flat index over the model), src/stores/appStore.ts (zustand), tests/ (vitest)
 e2e/       Playwright (desktop, phone, tablet); scripts/ for README screenshots and the overview GIF
 deploy/    local test instance behind Apache (odata-viewer.status20.net)
 scripts/   deploy.sh (Google Cloud Run)
-tools/     usage and feedback reports
+tools/     usage and feedback reports, IndexNow ping
 docs/      this page, Cloud Run, usage statistics, feedback
 ```
 

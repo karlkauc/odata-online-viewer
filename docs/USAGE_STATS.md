@@ -21,12 +21,13 @@ One row per event in table `usage_event` (DDL: `backend/sql/usage_stats.sql`):
 
 | Column | Meaning |
 |---|---|
-| `event_type` | `page_view` (SPA shell served), `metadata_load`, `data_query`, `export` |
+| `event_type` | `page_view` (SPA shell or content page served), `metadata_load`, `data_query`, `export`, `share` (a share link was copied: `source` = `service` or `query`; the copy itself happens in the browser, the button pings `POST /api/usage/share`) |
 | `visitor_hash` | `sha256(daily_salt ‖ ip ‖ user-agent)[:32]`; salt = `HMAC(USAGE_HASH_SECRET, date)` ⇒ same visitor within a day, unlinkable across days, not reversible |
 | `country_code` | ISO-3166-1 alpha-2 derived server-side via MaxMind GeoLite2; NULL if unknown |
 | `user_agent`, `device` | UA string (≤255) and a cheap classification `desktop`/`mobile`/`bot`/`unknown` |
 | `referrer` | `scheme://host/path` of the `Referer` header, query dropped |
-| `path` | page_view only — SPA path served. Only routes in `ROUTE_META` (`backend/app/spa.py`: `/`, `/samples`, `/about`) and the `/go/*` redirects produce a row; scanner paths get a 404 without an event |
+| `path` | page_view only — path served. Only routes in `ROUTE_META` (`backend/app/spa.py`: `/`, `/samples`, `/about`), the content pages (`backend/app/content/pages/**`, `/samples/<id>`) and the `/go/*` redirects produce a row; scanner paths get a 404 without an event. `/go/xsd-viewer`, `/go/xml-viewer` count clicks to the sister sites |
+| `utm_source`, `utm_medium`, `utm_campaign` | page_view only — the `utm_*` query parameters of the request, lower-cased, kept only if they are slugs of ≤64 `[a-z0-9._-]`. The three viewers send `Referrer-Policy: no-referrer`, so links between them carry `utm_source=<site>&utm_medium=sister`; posts and directory entries should use their own `utm_source` |
 | `source` | `metadata_load`: `upload`/`text`/`url`/`sample`; `data_query`: `query` (one page), `next` (a next link), `raw` (free resource path); `export`: `markdown`/`mermaid`/`source`, `xlsx_page`/`xlsx_all` (data explorer Excel export) |
 | `schema_name` | `metadata_load`/`export`: the requested `$metadata` URL without query (never a redirect's session segment, never credentials) or the file **basename**; `data_query` and the `xlsx_*` exports: the service root |
 | `target_namespace` | `metadata_load`: first schema namespace; `data_query`, `xlsx_*` exports: entity set |
@@ -151,6 +152,18 @@ SELECT schema_name, odata_version, count(*) FROM usage_event WHERE event_type='m
 -- Countries, referrers, devices
 SELECT country_code, count(DISTINCT visitor_hash) FROM usage_event WHERE device<>'bot' GROUP BY 1 ORDER BY 2 DESC;
 SELECT referrer, count(*) FROM usage_event WHERE event_type='page_view' GROUP BY 1 ORDER BY 2 DESC LIMIT 25;
+
+-- Where visitors come from: campaign tags and sister sites
+SELECT utm_source, utm_medium, count(*), count(DISTINCT visitor_hash) FROM usage_event
+WHERE event_type='page_view' AND utm_source IS NOT NULL GROUP BY 1,2 ORDER BY 3 DESC;
+
+-- Clicks to the sister tools and FreeXmlToolkit, copied share links
+SELECT path, count(*) FROM usage_event WHERE event_type='page_view' AND path LIKE '/go/%' GROUP BY 1 ORDER BY 2 DESC;
+SELECT received_at::date d, source, count(*) FROM usage_event WHERE event_type='share' GROUP BY 1,2 ORDER BY 1 DESC;
+
+-- Content pages that bring visitors
+SELECT path, count(*) FROM usage_event WHERE event_type='page_view' AND device<>'bot'
+  AND path NOT IN ('/', '/samples', '/about') AND path NOT LIKE '/go/%' GROUP BY 1 ORDER BY 2 DESC;
 
 -- Size watch
 SELECT pg_size_pretty(pg_total_relation_size('usage_event')), count(*) FROM usage_event;

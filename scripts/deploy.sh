@@ -48,6 +48,9 @@ ENV_VARS+=',DATA_TIMEOUT_SECONDS=30'
 ENV_VARS+=',DATA_MAX_RESPONSE_MB=5'
 ENV_VARS+=',DATA_EXPORT_MAX_ROWS=50000'
 ENV_VARS+=',DATA_EXPORT_DEADLINE_SECONDS=90'
+# IndexNow key (public by design: served as /<key>.txt); tools/indexnow_ping.py uses it.
+INDEXNOW_KEY='56680a3fa01c03784fa7473e2e48d8f1'
+ENV_VARS+=",INDEXNOW_KEY=$INDEXNOW_KEY"
 ENV_VARS+=',USAGE_DB_URL=postgresql://odataviewer@62.238.116.11:5432/odataviewer_stats?sslmode=require'
 
 SECRETS='USAGE_DB_PASSWORD=odataviewer-db-password:latest'
@@ -64,3 +67,8 @@ gcloud run deploy "$SERVICE" --source . --region "$REGION" --project "$PROJECT" 
   --session-affinity \
   --set-env-vars "$ENV_VARS" \
   --update-secrets "$SECRETS"
+
+# Tell Bing & co. about new or changed pages (sitemap URLs). Opt-in: INDEXNOW_PING=1 scripts/deploy.sh
+if [[ "${INDEXNOW_PING:-0}" == "1" ]]; then
+  python3 tools/indexnow_ping.py --key "$INDEXNOW_KEY" --site "https://www.odata-viewer.online"
+fi
