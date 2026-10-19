@@ -106,8 +106,10 @@ test("data explorer queries through the backend proxy", async ({ page }) => {
     model.source = "url";
     await route.fulfill({ json: model });
   });
-  await page.route("**/api/data/query", (route) =>
-    route.fulfill({
+  const queries: { orderby: string | null; skip: number }[] = [];
+  await page.route("**/api/data/query", (route) => {
+    queries.push(JSON.parse(route.request().postData() ?? "{}").options);
+    return route.fulfill({
       json: {
         request_url: root + "Products?$top=2&$count=true",
         status_code: 200,
@@ -121,8 +123,8 @@ test("data explorer queries through the backend proxy", async ({ page }) => {
         duration_ms: 12,
         notices: [],
       },
-    }),
-  );
+    });
+  });
   await page.goto("/");
   await page.getByRole("textbox", { name: "OData service URL" }).fill(root);
   await page.getByRole("button", { name: "Load" }).click();
@@ -131,4 +133,14 @@ test("data explorer queries through the backend proxy", async ({ page }) => {
   await page.getByRole("button", { name: "Run" }).click();
   await expect(page.getByRole("cell", { name: "Chai" })).toBeVisible();
   await expect(page.getByText("Rows 1–2 of 77")).toBeVisible();
+
+  // Header clicks sort the whole set through $orderby, starting at the first page.
+  const header = page.getByRole("columnheader", { name: /ProductName/ });
+  await header.getByRole("button").click();
+  await expect(header).toHaveAttribute("aria-sort", "ascending");
+  expect(queries.at(-1)).toMatchObject({ orderby: "ProductName asc", skip: 0 });
+  await header.getByRole("button").click();
+  await expect(header).toHaveAttribute("aria-sort", "descending");
+  expect(queries.at(-1)).toMatchObject({ orderby: "ProductName desc", skip: 0 });
+  await expect(page.getByRole("textbox", { name: "$orderby" })).toHaveValue("ProductName desc");
 });

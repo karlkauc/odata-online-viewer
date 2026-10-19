@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { ApiError, exportEntitySet, queryEntitySet } from "../../api/client";
 import { drillPath, localResult, resolvePath } from "../../lib/drillPath";
 import { effectiveMembers, shortType } from "../../lib/modelIndex";
+import { nextSort, orderbyFor, parseOrderby, sortableType, sortRows, type Sort } from "../../lib/tableSort";
 import { useCopy } from "../../lib/useCopy";
 import { useDismiss } from "../../lib/useDismiss";
 import { DEFAULT_QUERY, useApp, type DrillLevel } from "../../stores/appStore";
@@ -149,6 +150,9 @@ export function DataExplorer() {
 
   useEffect(() => setDraft(data.options), [data.options, data.entitySet]);
   useEffect(() => setExportNote(null), [data.result]);
+  // In-browser sort for complete results; paged ones sort through $orderby.
+  const [localSort, setLocalSort] = useState<Sort | null>(null);
+  useEffect(() => setLocalSort(null), [data.result]);
 
   const v4 = model?.odata_version.startsWith("4") ?? true;
   const sets = index?.entitySets ?? [];
@@ -226,6 +230,24 @@ export function DataExplorer() {
   };
 
   const drillable = (value: Cell | undefined) => value !== null && typeof value === "object";
+
+  // Drilled values and unpaged answers are complete and have no query to repeat.
+  const clientSort = data.local || data.result?.paged === false;
+  const serverSortable = useMemo(() => new Set(fields.filter((f) => sortableType(f.type)).map((f) => f.name)), [fields]);
+  const sort = clientSort ? localSort : parseOrderby(data.options.orderby);
+  const sortedRows = useMemo(() => {
+    const rows = data.result?.rows ?? [];
+    return clientSort && localSort ? sortRows(rows, localSort) : rows;
+  }, [data.result, clientSort, localSort]);
+
+  const sortBy = (column: string) => {
+    if (clientSort) {
+      setLocalSort(nextSort(localSort, column));
+      return;
+    }
+    // A new order starts over at the first page, like Run.
+    void run({ ...data.options, orderby: orderbyFor(nextSort(sort, column)), skip: 0 }, null, []);
+  };
 
   const exportRows = async (scope: "page" | "all") => {
     if (!model || !data.entitySet || !data.result) return;
@@ -496,16 +518,45 @@ export function DataExplorer() {
             <thead className="sticky top-0 bg-white dark:bg-slate-950 z-[1]">
               <tr>
                 <th className="text-right px-2 py-1 text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800 w-8">#</th>
-                {result.columns.map((c) => (
-                  <th key={c} className="text-left px-2 py-1 font-semibold font-mono whitespace-nowrap border-b border-slate-200 dark:border-slate-800">
-                    {c}
-                    {fields.find((f) => f.name === c)?.isKey && <KeyIcon size={11} className="ml-1 inline align-[-1px]" />}
-                  </th>
-                ))}
+                {result.columns.map((c) => {
+                  const isKey = fields.find((f) => f.name === c)?.isKey;
+                  const active = sort?.column === c ? sort.dir : null;
+                  const sortable = clientSort || serverSortable.has(c);
+                  return (
+                    <th
+                      key={c}
+                      aria-sort={active === "asc" ? "ascending" : active === "desc" ? "descending" : undefined}
+                      className="text-left px-2 py-1 font-semibold font-mono whitespace-nowrap border-b border-slate-200 dark:border-slate-800"
+                    >
+                      {sortable ? (
+                        <button
+                          type="button"
+                          className="group inline-flex items-center gap-1 font-semibold hover:text-accent dark:hover:text-accent-dark disabled:cursor-wait"
+                          disabled={data.loading}
+                          onClick={() => sortBy(c)}
+                          title={`Sort by ${c} ${active === "asc" ? "descending" : "ascending"}`}
+                        >
+                          {c}
+                          {isKey && <KeyIcon size={11} />}
+                          <Icon
+                            name={active === "asc" ? "arrowUp" : active === "desc" ? "arrowDown" : "arrowUpDown"}
+                            size={12}
+                            className={active ? "text-accent dark:text-accent-dark" : "text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}
+                          />
+                        </button>
+                      ) : (
+                        <>
+                          {c}
+                          {isKey && <KeyIcon size={11} className="ml-1 inline align-[-1px]" />}
+                        </>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {result.rows.map((row, i) => (
+              {sortedRows.map((row, i) => (
                 <tr key={i} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/40 hover:bg-blue-50/60 dark:hover:bg-blue-950/30">
                   <td className="text-right px-2 py-1 text-[10px] text-slate-400 tabular-nums align-top">{offset + i + 1}</td>
                   {result.columns.map((c) => (
