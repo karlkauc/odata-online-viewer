@@ -2,7 +2,9 @@
 
 Accepted inputs: a service root (``https://host/odata/``), the metadata URL
 itself (``…/$metadata``, also percent-encoded), either with query parameters
-such as SAP's ``sap-client``. ``$format`` is dropped because the metadata is
+such as SAP's ``sap-client``, or the URL of a resource inside the service
+(``…/odata/Customers``, ``…/odata/Customers(1)/Orders``): then the parents are
+tried as service root, see :func:`candidate_service_urls`. ``$format`` is dropped because the metadata is
 requested with an ``Accept`` header instead.
 """
 
@@ -51,6 +53,32 @@ def split_service_url(url: str) -> ServiceUrls:
     root = urlunsplit((parts.scheme, parts.netloc, base_path + "/", query_string, ""))
     metadata = urlunsplit((parts.scheme, parts.netloc, base_path + "/" + METADATA_SEGMENT, query_string, ""))
     return ServiceUrls(metadata_url=metadata, service_root=root)
+
+
+MAX_PARENT_TRIES = 4
+"""How many trailing path segments may be dropped to find the service root."""
+
+
+def candidate_service_urls(url: str) -> list[ServiceUrls]:
+    """The input as service root first, then its parents (``…/odata/Customers`` →
+    ``…/odata/``). An explicit ``$metadata`` URL has no alternatives."""
+    first = split_service_url(url)
+    parts = urlsplit(normalize_url(url))
+    _, explicit = _strip_metadata(parts.path or "")
+    if explicit:
+        return [first]
+    out = [first]
+    root = urlsplit(first.service_root)
+    segments = [s for s in root.path.split("/") if s]
+    for _ in range(MAX_PARENT_TRIES):
+        if not segments:
+            break
+        segments = segments[:-1]
+        base = "/" + "/".join(segments) if segments else ""
+        metadata = urlunsplit((root.scheme, root.netloc, base + "/" + METADATA_SEGMENT, root.query, ""))
+        service_root = urlunsplit((root.scheme, root.netloc, base + "/", root.query, ""))
+        out.append(ServiceUrls(metadata_url=metadata, service_root=service_root))
+    return out
 
 
 def service_root_from_metadata_url(metadata_url: str) -> str:

@@ -72,3 +72,22 @@ def test_same_service() -> None:
     assert same_service(root, "https://h.example/odata/Products?$skiptoken=5")
     assert not same_service(root, "https://evil.example/odata/Products")
     assert not same_service(root, "https://h.example/other/Products")
+
+
+def test_candidates_walk_up_from_a_resource_path() -> None:
+    from app.odata.service_url import candidate_service_urls
+
+    roots = [
+        c.service_root
+        for c in candidate_service_urls("https://h.example/odata/Kunden(1)/Umsaetze?sap-client=100")
+    ]
+    assert roots[:3] == [
+        "https://h.example/odata/Kunden(1)/Umsaetze/?sap-client=100",
+        "https://h.example/odata/Kunden(1)/?sap-client=100",
+        "https://h.example/odata/?sap-client=100",
+    ]
+    assert (
+        candidate_service_urls("https://h.example/odata/$metadata")[0].service_root
+        == "https://h.example/odata/"
+    )
+    assert len(candidate_service_urls("https://h.example/odata/$metadata")) == 1

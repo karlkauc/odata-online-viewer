@@ -18,7 +18,7 @@ from app.odata.csdl_parser import MetadataError, parse_metadata
 from app.odata.data_client import AuthPayload, basic_auth_header
 from app.odata.exports import to_markdown, to_mermaid
 from app.odata.model import ServiceModel
-from app.odata.service_url import service_root_from_metadata_url, split_service_url
+from app.odata.service_url import candidate_service_urls, service_root_from_metadata_url
 from app.parser.errors import clean_input, utf8_bytes
 from app.parser.security import FetchHttpError, SecurityError, fetch_url
 from app.rate_limit import READ_LIMIT, WRITE_LIMIT, limiter
@@ -123,35 +123,64 @@ def _parse_and_store(
 
 
 def load_from_url(url: str, auth: AuthPayload | None, *, source: str = "url") -> ServiceModel:
-    """Fetch ``$metadata`` for a service URL (shared by the URL loader and the samples)."""
+    """Fetch ``$metadata`` for a service URL (shared by the URL loader and the samples).
+
+    A URL that points into the service (``…/odata/Customers``) yields 400/404 for
+    ``…/Customers/$metadata``; then the parent paths are tried and the first one
+    that answers with a metadata document wins (with a notice)."""
     try:
-        urls = split_service_url(url)
+        candidates = candidate_service_urls(url)
     except ValueError as exc:
         raise reject(
             "metadata_load", source, 400, str(exc), schema_name=schema_display_name("url", url)
         ) from exc
+    urls = candidates[0]
     headers = {"Accept": "application/xml, application/json;q=0.9, */*;q=0.1"}
     headers.update(basic_auth_header(auth))
-    try:
-        fetched = fetch_url(urls.metadata_url, headers=headers)
-    except FetchHttpError as exc:
-        detail = _describe_http_error(exc, urls.metadata_url, auth is not None)
+    fetched = None
+    first_error: FetchHttpError | None = None
+    for candidate in candidates:
+        try:
+            result = fetch_url(candidate.metadata_url, headers=headers)
+        except FetchHttpError as exc:
+            if exc.status_code in (400, 404, 405) and candidate is not candidates[-1]:
+                first_error = first_error or exc
+                continue  # maybe a resource path: try the parent
+            if first_error is not None and exc.status_code in (400, 404, 405):
+                exc = first_error
+            detail = _describe_http_error(exc, urls.metadata_url, auth is not None)
+            raise reject(
+                "metadata_load",
+                source,
+                401 if exc.status_code in (401, 403) else 400,
+                detail,
+                schema_name=schema_display_name("url", urls.metadata_url),
+            ) from exc
+        except SecurityError as exc:
+            name = schema_display_name("url", urls.metadata_url)
+            raise reject("metadata_load", source, 400, str(exc), schema_name=name) from exc
+        except Exception as exc:  # httpx transport errors: DNS, TLS, timeouts
+            detail = f"The service could not be reached: {exc.__class__.__name__}: {exc}"
+            name = schema_display_name("url", urls.metadata_url)
+            raise reject("metadata_load", source, 400, detail, schema_name=name) from exc
+        if candidate is candidates[0] or _looks_like_metadata(result.content):
+            fetched, urls = result, candidate
+            break
+        first_error = first_error or FetchHttpError("not metadata", 404)
+    if fetched is None:  # only parents answered, none with metadata
+        exc = first_error or FetchHttpError("not metadata", 404)
         raise reject(
             "metadata_load",
             source,
-            401 if exc.status_code in (401, 403) else 400,
-            detail,
-            schema_name=schema_display_name("url", urls.metadata_url),
-        ) from exc
-    except SecurityError as exc:
-        raise reject(
-            "metadata_load", source, 400, str(exc), schema_name=schema_display_name("url", urls.metadata_url)
-        ) from exc
-    except Exception as exc:  # httpx transport errors: DNS, TLS, timeouts
-        detail = f"The service could not be reached: {exc.__class__.__name__}: {exc}"
-        raise reject(
-            "metadata_load", source, 400, detail, schema_name=schema_display_name("url", urls.metadata_url)
-        ) from exc
+            400,
+            _describe_http_error(exc, candidates[0].metadata_url, auth is not None),
+            schema_name=schema_display_name("url", candidates[0].metadata_url),
+        )
+    notices = []
+    if urls is not candidates[0]:
+        notices.append(
+            f"The URL points into the service; loaded the metadata of the service root {urls.service_root}."
+        )
     return _parse_and_store(
         fetched.content,
         filename=urls.metadata_url,
@@ -160,7 +189,13 @@ def load_from_url(url: str, auth: AuthPayload | None, *, source: str = "url") ->
         metadata_url=fetched.url,
         service_root=service_root_from_metadata_url(fetched.url),
         auth_used=auth is not None,
+        notices=notices,
     )
+
+
+def _looks_like_metadata(content: bytes) -> bool:
+    head = content[:4096].lstrip()
+    return (head.startswith(b"<") and b"Edmx" in head) or (head.startswith(b"{") and b"$Version" in head)
 
 
 def _describe_http_error(exc: FetchHttpError, url: str, had_auth: bool) -> str:

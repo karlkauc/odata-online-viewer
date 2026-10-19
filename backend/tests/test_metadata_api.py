@@ -233,6 +233,55 @@ def test_url_load_html_login_page_is_explained(client: TestClient, fetch: FakeFe
     assert r.status_code == 400 and "HTML page" in r.json()["detail"]
 
 
+def test_url_of_an_entity_set_falls_back_to_the_service_root(client: TestClient, fetch: FakeFetch) -> None:
+    fetch.responses["https://odata.status20.net/odata/Organisation/$metadata"] = FetchHttpError("x", 400)
+    fetch.responses["https://odata.status20.net/odata/$metadata"] = FetchedResource(
+        url="https://odata.status20.net/odata/$metadata",
+        content=(SAMPLES / "jdbcodata-demo.xml").read_bytes(),
+        content_type="application/xml",
+    )
+    r = client.post(
+        "/api/metadata/url",
+        json={
+            "url": "https://odata.status20.net/odata/Organisation",
+            "auth": {"username": "u", "password": "p"},
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["service_root"] == "https://odata.status20.net/odata/"
+    assert any("service root https://odata.status20.net/odata/" in n for n in body["notices"])
+    assert [c[0] for c in fetch.calls] == [
+        "https://odata.status20.net/odata/Organisation/$metadata",
+        "https://odata.status20.net/odata/$metadata",
+    ]
+    assert all(c[1].get("Authorization") for c in fetch.calls)
+
+
+def test_parent_fallback_stops_at_auth_errors_and_reports_the_first_error(
+    client: TestClient, fetch: FakeFetch
+) -> None:
+    fetch.responses["https://h.example/a/b/$metadata"] = FetchHttpError("x", 404)
+    fetch.responses["https://h.example/a/$metadata"] = FetchHttpError("x", 401)
+    r = client.post("/api/metadata/url", json={"url": "https://h.example/a/b"})
+    assert r.status_code == 401 and len(fetch.calls) == 2
+    fetch.calls.clear()
+    fetch.responses.clear()
+    fetch.responses["https://h.example/x/$metadata"] = FetchHttpError("x", 404)
+    fetch.responses["https://h.example/$metadata"] = FetchedResource(
+        url="https://h.example/$metadata",
+        content=b"<!doctype html><html>home</html>",
+        content_type="text/html",
+    )
+    r = client.post("/api/metadata/url", json={"url": "https://h.example/x/"})
+    assert r.status_code == 400 and "HTTP 404" in r.json()["detail"]
+    # an explicit $metadata URL is not second-guessed
+    fetch.calls.clear()
+    fetch.responses["https://h.example/x/$metadata"] = FetchHttpError("x", 400)
+    r = client.post("/api/metadata/url", json={"url": "https://h.example/x/$metadata"})
+    assert r.status_code == 400 and len(fetch.calls) == 1
+
+
 # --- Samples ----------------------------------------------------------------
 
 
