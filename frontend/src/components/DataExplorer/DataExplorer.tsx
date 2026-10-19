@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ApiError, queryEntitySet } from "../../api/client";
+import { drillPath, localResult, resolvePath } from "../../lib/drillPath";
 import { effectiveMembers, shortType } from "../../lib/modelIndex";
 import { useCopy } from "../../lib/useCopy";
 import { useDismiss } from "../../lib/useDismiss";
-import { DEFAULT_QUERY, useApp } from "../../stores/appStore";
+import { DEFAULT_QUERY, useApp, type DrillLevel } from "../../stores/appStore";
 import type { Auth, Cell, QueryOptions } from "../../types/model";
 import { KindBadge } from "../KindBadge";
 
 const INPUT =
   "w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-mono";
 
-function CellView({ value }: { value: Cell }) {
+const DRILL = "text-accent hover:underline text-left";
+
+function CellView({ value, onOpen }: { value: Cell; onOpen?: () => void }) {
   if (value === null || value === undefined) return <span className="text-slate-400 italic">null</span>;
   if (typeof value === "boolean") return <span className="text-violet-700 dark:text-violet-300">{String(value)}</span>;
   if (typeof value === "number") return <span className="tabular-nums text-blue-800 dark:text-blue-300">{String(value)}</span>;
@@ -20,19 +23,36 @@ function CellView({ value }: { value: Cell }) {
     return <>{value}</>;
   }
   if (Array.isArray(value)) {
-    return (
-      <span className="text-slate-500" title={JSON.stringify(value, null, 2)}>
-        [{value.length} item{value.length === 1 ? "" : "s"}]
+    const label = `[${value.length} item${value.length === 1 ? "" : "s"}]`;
+    const title = JSON.stringify(value, null, 2);
+    return onOpen && value.length > 0 ? (
+      <button type="button" className={DRILL} title={title} onClick={onOpen}>
+        {label}
+      </button>
+    ) : (
+      <span className="text-slate-500" title={title}>
+        {label}
       </span>
     );
   }
   if ("@link" in value && typeof value["@link"] === "string") {
-    return <span className="text-slate-500 font-mono text-[11px]">→ {value["@link"]}</span>;
+    return onOpen ? (
+      <button type="button" className={clsx(DRILL, "font-mono text-[11px]")} onClick={onOpen}>
+        → {value["@link"]}
+      </button>
+    ) : (
+      <span className="text-slate-500 font-mono text-[11px]">→ {value["@link"]}</span>
+    );
   }
   const text = JSON.stringify(value);
-  return (
+  const shown = text.length > 120 ? text.slice(0, 120) + "…" : text;
+  return onOpen ? (
+    <button type="button" className={clsx(DRILL, "font-mono text-[11px]")} title={JSON.stringify(value, null, 2)} onClick={onOpen}>
+      {shown}
+    </button>
+  ) : (
     <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300" title={JSON.stringify(value, null, 2)}>
-      {text.length > 120 ? text.slice(0, 120) + "…" : text}
+      {shown}
     </span>
   );
 }
@@ -88,20 +108,23 @@ export function DataExplorer() {
 
   const v4 = model?.odata_version.startsWith("4") ?? true;
   const sets = index?.entitySets ?? [];
-  const current = sets.find((s) => s.set.name === data.entitySet) ?? null;
-  const entityType = current && index ? index.typesByName.get(current.set.entity_type) : undefined;
+  // While drilled into a cell, `data.entitySet` is a resource path such as `Orders(1)/Tags`.
+  const baseSet = data.trail[0]?.entitySet ?? data.entitySet;
+  const current = sets.find((s) => s.set.name === baseSet) ?? null;
+  const target = useMemo(() => (index && data.entitySet && !data.local ? resolvePath(index, data.entitySet) : null), [index, data.entitySet, data.local]);
+  const entityType = target?.type ?? undefined;
   const fields = useMemo(() => {
-    if (!index || !entityType || (entityType.kind !== "entity" && entityType.kind !== "complex")) return [];
+    if (!index || !entityType) return [];
     const key = new Set(entityType.kind === "entity" ? entityType.key : []);
     return effectiveMembers(index, entityType).properties.map((p) => ({ name: p.name, type: shortType(p.type), isKey: key.has(p.name) }));
   }, [index, entityType]);
 
   const run = useCallback(
-    async (options: QueryOptions, nextLink: string | null = null, pageStack: number[] = data.pageStack) => {
-      if (!model || !data.entitySet) return;
+    async (options: QueryOptions, nextLink: string | null = null, pageStack: number[] = data.pageStack, entitySet = data.entitySet) => {
+      if (!model || !entitySet) return;
       setData({ loading: true, error: null, options, pageStack });
       try {
-        const result = await queryEntitySet(model.metadata_id, data.entitySet, options, auth, nextLink);
+        const result = await queryEntitySet(model.metadata_id, entitySet, options, auth, nextLink);
         setData({ result, loading: false, error: null });
         setNeedAuth(false);
       } catch (err) {
@@ -115,8 +138,50 @@ export function DataExplorer() {
 
   const submit = (event?: React.FormEvent) => {
     event?.preventDefault();
+    if (data.local) return;
     void run({ ...draft, skip: 0 }, null, []);
   };
+
+  const snapshot = (): DrillLevel => ({
+    entitySet: data.entitySet,
+    options: data.options,
+    result: data.result,
+    error: data.error,
+    pageStack: data.pageStack,
+    rawView: data.rawView,
+    local: data.local,
+  });
+
+  const openCell = (row: Record<string, Cell>, column: string) => {
+    if (!model || !index || !data.entitySet) return;
+    const trail = [...data.trail, snapshot()];
+    const path = data.local ? null : drillPath(index, model.service_root, v4, data.entitySet, row, column);
+    if (path) {
+      const options = { ...DEFAULT_QUERY };
+      setData({ trail, entitySet: path, result: null, rawView: false, local: false });
+      void run(options, null, [], path);
+    } else {
+      setData({
+        trail,
+        entitySet: `${data.entitySet}/${column}`,
+        options: { ...DEFAULT_QUERY },
+        result: localResult(row[column] ?? null),
+        error: null,
+        pageStack: [],
+        rawView: false,
+        local: true,
+      });
+    }
+  };
+
+  /** Return to `trail[depth]`, dropping it and every level after it. */
+  const goBack = (depth = data.trail.length - 1) => {
+    const level = data.trail[depth];
+    if (!level || data.loading) return;
+    setData({ ...level, trail: data.trail.slice(0, depth), loading: false });
+  };
+
+  const drillable = (value: Cell | undefined) => value !== null && typeof value === "object";
 
   const nextPage = () => {
     if (!data.result) return;
@@ -161,9 +226,9 @@ export function DataExplorer() {
             <span className="text-slate-500">Entity set</span>
             <select
               className={clsx(INPUT, "mt-0.5")}
-              value={data.entitySet ?? ""}
+              value={baseSet ?? ""}
               onChange={(e) => {
-                setData({ entitySet: e.target.value, result: null, error: null, pageStack: [], options: { ...DEFAULT_QUERY } });
+                setData({ entitySet: e.target.value, result: null, error: null, pageStack: [], options: { ...DEFAULT_QUERY }, trail: [], local: false });
               }}
             >
               {sets.map(({ set, container }) => (
@@ -181,7 +246,7 @@ export function DataExplorer() {
             </div>
           </label>
           <div className="flex gap-1.5">
-            <button type="submit" className="btn btn-primary" disabled={data.loading}>
+            <button type="submit" className="btn btn-primary" disabled={data.loading || data.local}>
               {data.loading ? "Running…" : "▶ Run"}
             </button>
             {current && (
@@ -206,7 +271,7 @@ export function DataExplorer() {
             <span className="text-slate-500">$orderby</span>
             <input
               className={clsx(INPUT, "mt-0.5")}
-              placeholder={fields[0] ? `e.g. ${fields[0].name} desc` : "Name desc"}
+              placeholder={fields[0] ? `e.g. ${fields[0].name} desc` : target && !target.type ? "$it desc" : "Name desc"}
               value={draft.orderby ?? ""}
               onChange={(e) => setDraft({ ...draft, orderby: e.target.value || null })}
               spellCheck={false}
@@ -283,6 +348,27 @@ export function DataExplorer() {
         </details>
       </form>
 
+      {data.trail.length > 0 && (
+        <nav aria-label="Drill-down path" className="flex items-center gap-1.5 px-3 py-1.5 text-xs border-b border-slate-200 dark:border-slate-800 min-w-0">
+          <button type="button" className="btn text-xs py-0.5 shrink-0" onClick={() => goBack()} disabled={data.loading}>
+            ‹ Back
+          </button>
+          <ol className="flex items-center gap-1 min-w-0 overflow-x-auto font-mono whitespace-nowrap">
+            {data.trail.map((level, depth) => (
+              <li key={depth} className="flex items-center gap-1">
+                <button type="button" className={DRILL} onClick={() => goBack(depth)} disabled={data.loading}>
+                  {depth === 0 ? level.entitySet : (level.entitySet ?? "").slice((data.trail[depth - 1].entitySet ?? "").length)}
+                </button>
+                <span className="text-slate-400">›</span>
+              </li>
+            ))}
+            <li className="text-slate-600 dark:text-slate-300" aria-current="page">
+              {(data.entitySet ?? "").slice((data.trail[data.trail.length - 1].entitySet ?? "").length)}
+            </li>
+          </ol>
+        </nav>
+      )}
+
       {data.error && (
         <p className="px-3 py-2 text-sm text-red-700 dark:text-red-400 border-b border-red-100 dark:border-red-900/50 break-words" role="alert">
           {data.error}
@@ -296,7 +382,7 @@ export function DataExplorer() {
             {result.count !== null ? ` of ${result.count.toLocaleString()}` : ""}
           </span>
           <span className="text-slate-500">{result.duration_ms} ms · HTTP {result.status_code}</span>
-          <span className="flex items-center gap-1 min-w-0 flex-1">
+          <span className={clsx("flex items-center gap-1 min-w-0 flex-1", !result.request_url && "invisible")}>
             <code className="font-mono truncate text-slate-600 dark:text-slate-300" title={result.request_url}>
               {result.request_url}
             </code>
@@ -314,7 +400,7 @@ export function DataExplorer() {
             <button
               type="button"
               className="btn text-xs py-0.5"
-              disabled={data.loading || (!result.next_link && result.rows.length < data.options.top)}
+              disabled={data.loading || data.local || (!result.next_link && result.rows.length < data.options.top)}
               onClick={nextPage}
             >
               Next ›
@@ -356,7 +442,7 @@ export function DataExplorer() {
                   <td className="text-right px-2 py-1 text-[10px] text-slate-400 tabular-nums align-top">{data.options.skip + i + 1}</td>
                   {result.columns.map((c) => (
                     <td key={c} className="px-2 py-1 whitespace-nowrap max-w-[28rem] overflow-hidden text-ellipsis align-top">
-                      <CellView value={row[c] ?? null} />
+                      <CellView value={row[c] ?? null} onOpen={drillable(row[c]) ? () => openCell(row, c) : undefined} />
                     </td>
                   ))}
                 </tr>

@@ -15,6 +15,8 @@ from app.odata.data_client import (
     build_query,
     column_order,
     normalise_payload,
+    path_segments,
+    resolve_path,
     validate_next_link,
 )
 
@@ -162,3 +164,66 @@ def test_next_link_must_stay_on_the_service() -> None:
 def test_basic_auth_header() -> None:
     assert basic_auth_header(None) == {}
     assert basic_auth_header(AuthPayload(username="u", password="p")) == {"Authorization": "Basic dTpw"}
+
+
+ORDERS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"><edmx:DataServices>
+<Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="Shop">
+  <EntityType Name="Order"><Key><PropertyRef Name="Id"/></Key>
+    <Property Name="Id" Type="Edm.Int32" Nullable="false"/>
+    <Property Name="Tags" Type="Collection(Edm.String)"/>
+    <Property Name="Lines" Type="Collection(Shop.Line)"/>
+    <Property Name="Address" Type="Shop.Address"/>
+    <NavigationProperty Name="Customer" Type="Shop.Customer"/>
+  </EntityType>
+  <EntityType Name="Customer"><Key><PropertyRef Name="Id"/></Key>
+    <Property Name="Id" Type="Edm.Int32" Nullable="false"/>
+    <Property Name="Name" Type="Edm.String"/>
+    <NavigationProperty Name="Orders" Type="Collection(Shop.Order)"/>
+  </EntityType>
+  <ComplexType Name="Line"><Property Name="Product" Type="Edm.String"/><Property Name="Qty" Type="Edm.Int32"/></ComplexType>
+  <ComplexType Name="Address"><Property Name="City" Type="Edm.String"/></ComplexType>
+  <EntityContainer Name="Container">
+    <EntitySet Name="Orders" EntityType="Shop.Order"/>
+    <EntitySet Name="Customers" EntityType="Shop.Customer"/>
+    <Singleton Name="Me" Type="Shop.Customer"/>
+  </EntityContainer>
+</Schema></edmx:DataServices></edmx:Edmx>"""
+
+
+@pytest.mark.parametrize(
+    ("path", "type_name", "collection"),
+    [
+        ("Orders", "Order", True),
+        ("Orders(1)", "Order", False),
+        ("Orders(1)/Tags", None, True),
+        ("Orders(1)/Lines", "Line", True),
+        ("Orders(1)/Address", "Address", False),
+        ("Orders(1)/Customer", "Customer", False),
+        ("Customers(7)/Orders", "Order", True),
+        ("Customers(7)/Orders(1)/Customer", "Customer", False),
+        ("Me/Orders", "Order", True),
+        ("Orders(1)/Unknown", None, True),
+    ],
+)
+def test_resolve_drill_down_paths(path: str, type_name: str | None, collection: bool) -> None:
+    target = resolve_path(parse_metadata(ORDERS).model, path)
+    assert (target.type.name if target.type else None) == type_name
+    assert target.collection is collection
+
+
+def test_path_segments_ignore_slashes_in_key_literals() -> None:
+    assert path_segments("Orders('a/b')/Customer") == ["Orders('a/b')", "Customer"]
+
+
+def test_single_targets_get_no_paging_options() -> None:
+    m = parse_metadata(ORDERS).model
+    m.service_root = "https://example.org/svc/"
+    url = build_query(m, "Orders(1)/Customer", QueryOptions(top=50, skip=10, count=True), single=True)
+    assert url == "https://example.org/svc/Orders(1)/Customer"
+
+
+def test_columns_follow_the_drill_target_type() -> None:
+    m = parse_metadata(ORDERS).model
+    rows = [{"Name": "A", "Id": 1}]
+    assert column_order(rows, resolve_path(m, "Orders(1)/Customer").type, []) == ["Id", "Name"]

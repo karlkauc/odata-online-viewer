@@ -42,7 +42,13 @@ export interface DataState {
   /** Previous pages' skip values, for "Previous". */
   pageStack: number[];
   rawView: boolean;
+  /** The result was taken from a parent row's cell, not queried (no key to address it by). */
+  local: boolean;
+  /** Levels left by drilling into a cell, outermost first; Back restores the last one. */
+  trail: DrillLevel[];
 }
+
+export type DrillLevel = Pick<DataState, "entitySet" | "options" | "result" | "error" | "pageStack" | "rawView" | "local">;
 
 interface AppState {
   model: ServiceModel | null;
@@ -107,6 +113,8 @@ export const useApp = create<AppState>((set, get) => ({
     error: null,
     pageStack: [],
     rawView: false,
+    local: false,
+    trail: [],
   },
   sourceLine: null,
 
@@ -131,6 +139,8 @@ export const useApp = create<AppState>((set, get) => ({
         error: null,
         pageStack: [],
         rawView: false,
+        local: false,
+        trail: [],
       },
       sourceLine: null,
     });
@@ -192,6 +202,8 @@ export const useApp = create<AppState>((set, get) => ({
         result: get().data.entitySet === entitySet ? get().data.result : null,
         error: null,
         pageStack: [],
+        local: false,
+        trail: [],
       },
     }),
 

@@ -221,3 +221,24 @@ test("wrong password is explained, anonymous access uses the demo user", async (
   await run(page);
   expect(await shownCount(page)).toBe(await directCount(request, "Produkte"));
 });
+
+test("drilling into a collection cell queries that row's values; Back restores the page", async ({ page, request }) => {
+  await loadService(page);
+  await openData(page, "Bestellungen");
+  await form(page).getByLabel("$orderby", { exact: true }).fill("BestellungId");
+  await form(page).getByLabel("$top", { exact: true }).fill("5");
+  await run(page);
+  const before = await resultRows(page);
+  const first = before[0];
+  const categories = first.Kategorien as string[];
+
+  await page.locator("tbody tr").first().getByRole("button", { name: `[${categories.length} item${categories.length === 1 ? "" : "s"}]` }).click();
+  const path = `Bestellungen(${first.BestellungId})/Kategorien`;
+  await expect(page.locator("code").filter({ hasText: `/${path}?` })).toBeVisible({ timeout: 30_000 });
+  const expected = await (await direct(request, path)).json();
+  expect((await resultRows(page)).map((r) => r.value)).toEqual(expected.value);
+
+  await page.getByRole("button", { name: "‹ Back" }).click();
+  await expect(page.getByRole("button", { name: "‹ Back" })).toHaveCount(0);
+  expect(await resultRows(page)).toEqual(before);
+});

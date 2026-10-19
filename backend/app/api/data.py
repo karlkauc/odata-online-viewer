@@ -25,9 +25,10 @@ from app.odata.data_client import (
     column_order,
     fetch_json,
     normalise_payload,
+    resolve_path,
     validate_next_link,
 )
-from app.odata.model import EntityType, ServiceModel
+from app.odata.model import ServiceModel
 from app.odata.service_url import join_service_path
 from app.rate_limit import DATA_LIMIT, limiter
 from app.usage.context import emit
@@ -69,17 +70,9 @@ class RawResponse(BaseModel):
     duration_ms: int
 
 
-def _entity_type_for(model: ServiceModel, entity_set: str) -> EntityType | None:
-    set_name = entity_set.split("(")[0].split("/")[0]
-    for schema in model.schemas:
-        for container in schema.containers:
-            for s in container.entity_sets:
-                if s.name == set_name:
-                    for sch in model.schemas:
-                        for et in sch.entity_types:
-                            if et.qualified_name == s.entity_type:
-                                return et
-    return None
+def _set_name(entity_set: str) -> str:
+    """Drill-down paths carry key values; statistics only get the entity set."""
+    return entity_set.split("(")[0].split("/")[0]
 
 
 def _host(model: ServiceModel) -> str | None:
@@ -91,11 +84,12 @@ def _host(model: ServiceModel) -> str | None:
 async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResponse:
     model = get_stored(payload.metadata_id).model
     started = time.perf_counter()
+    target = resolve_path(model, payload.entity_set)
     try:
         url = (
             validate_next_link(model, payload.next_link)
             if payload.next_link
-            else build_query(model, payload.entity_set, payload.options)
+            else build_query(model, payload.entity_set, payload.options, single=not target.collection)
         )
         body, status, _ctype, _dur = fetch_json(
             url,
@@ -110,7 +104,7 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
             "data_query",
             source="next" if payload.next_link else "query",
             schema_name=_host(model),
-            target_namespace=payload.entity_set,
+            target_namespace=_set_name(payload.entity_set),
             duration_ms=_ms(started),
             status="error",
             status_code=exc.upstream_status or exc.status_code,
@@ -123,14 +117,12 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         notices.append(
             f"The service returned {len(rows)} rows although $top={payload.options.top} was requested."
         )
-    columns = column_order(
-        rows, _entity_type_for(model, payload.entity_set), payload.options.select, payload.options.expand
-    )
+    columns = column_order(rows, target.type, payload.options.select, payload.options.expand)
     emit(
         "data_query",
         source="next" if payload.next_link else "query",
         schema_name=_host(model),
-        target_namespace=payload.entity_set,
+        target_namespace=_set_name(payload.entity_set),
         element_count=len(rows),
         duration_ms=_ms(started),
         status="ok",

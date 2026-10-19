@@ -19,7 +19,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field
 
-from app.odata.model import EntityType, ServiceModel
+from app.odata.csdl_parser import split_collection
+from app.odata.model import ComplexType, EntityType, ServiceModel
 from app.odata.service_url import join_service_path, same_service
 from app.parser.security import FetchHttpError, SecurityError, fetch_url
 
@@ -75,8 +76,13 @@ class QueryResult:
     notices: list[str] = field(default_factory=list)
 
 
-def build_query(model: ServiceModel, entity_set_path: str, options: QueryOptions) -> str:
-    """Absolute request URL for one page of an entity set."""
+def build_query(
+    model: ServiceModel, entity_set_path: str, options: QueryOptions, *, single: bool = False
+) -> str:
+    """Absolute request URL for one page of an entity set.
+
+    ``single`` targets (``Orders(1)/Customer``) get no paging or count options:
+    strict services reject ``$top`` on a single entity or complex value."""
     if not model.service_root:
         raise DataError(
             "This metadata was pasted or uploaded; load it from the service URL to browse data.", 400
@@ -94,11 +100,12 @@ def build_query(model: ServiceModel, entity_set_path: str, options: QueryOptions
         query.append(("$expand", options.expand.strip()))
     if options.search and options.search.strip() and not v2:
         query.append(("$search", options.search.strip()))
-    query.append(("$top", str(options.top)))
-    if options.skip:
-        query.append(("$skip", str(options.skip)))
-    if options.count:
-        query.append(("$inlinecount", "allpages") if v2 else ("$count", "true"))
+    if not single:
+        query.append(("$top", str(options.top)))
+        if options.skip:
+            query.append(("$skip", str(options.skip)))
+        if options.count:
+            query.append(("$inlinecount", "allpages") if v2 else ("$count", "true"))
     if v2:
         query.append(("$format", "json"))
     if options.extra and options.extra.strip():
@@ -109,6 +116,76 @@ def build_query(model: ServiceModel, entity_set_path: str, options: QueryOptions
             if key.strip():
                 query.append((key.strip(), value))
     return join_service_path(model.service_root, entity_set_path, query)
+
+
+@dataclass
+class PathTarget:
+    """What a resource path addresses: its structured type (None for primitives
+    or unknown members) and whether the answer is a collection."""
+
+    type: EntityType | ComplexType | None
+    collection: bool
+
+
+def path_segments(path: str) -> list[str]:
+    """Split a resource path at ``/`` outside key predicates (``P('a/b')/Nav``)."""
+    segments, depth, quoted, current = [], 0, False, ""
+    for ch in path.strip("/"):
+        if ch == "'":
+            quoted = not quoted
+        elif not quoted and ch == "(":
+            depth += 1
+        elif not quoted and ch == ")":
+            depth -= 1
+        elif ch == "/" and depth == 0 and not quoted:
+            segments.append(current)
+            current = ""
+            continue
+        current += ch
+    segments.append(current)
+    return [s for s in segments if s]
+
+
+def resolve_path(model: ServiceModel, path: str) -> PathTarget:
+    """Walk ``Set(key)/Nav/Prop`` through the model to the addressed type."""
+    types: dict[str, EntityType | ComplexType] = {
+        t.qualified_name: t for s in model.schemas for t in [*s.entity_types, *s.complex_types]
+    }
+    segments = path_segments(path.split("?")[0])
+    if not segments:
+        return PathTarget(None, True)
+    head = segments[0]
+    name = head.split("(")[0]
+    current: EntityType | ComplexType | None = None
+    collection = True
+    for schema in model.schemas:
+        for container in schema.containers:
+            for s in container.entity_sets:
+                if s.name == name and current is None:
+                    current, collection = types.get(s.entity_type), "(" not in head
+            for single in container.singletons:
+                if single.name == name and current is None:
+                    current, collection = types.get(single.entity_type), False
+    for segment in segments[1:]:
+        if current is None:
+            return PathTarget(None, collection)
+        name, keyed = segment.split("(")[0], "(" in segment
+        chain, seen = [current], {current.qualified_name}
+        while chain[-1].base_type and chain[-1].base_type not in seen and chain[-1].base_type in types:
+            seen.add(chain[-1].base_type)
+            chain.append(types[chain[-1].base_type])
+        prop = next((p for t in chain for p in t.properties if p.name == name), None)
+        nav = next((n for t in chain for n in t.navigation_properties if n.name == name), None)
+        if prop is not None:
+            inner, collection = split_collection(prop.type)
+            current = types.get(inner)
+        elif nav is not None:
+            current, collection = types.get(nav.target_type), nav.is_collection
+        else:
+            return PathTarget(None, True)
+        if keyed:
+            collection = False
+    return PathTarget(current, collection)
 
 
 def check_resource_path(path: str) -> None:
@@ -274,7 +351,7 @@ def normalise_payload(
     # A single entity or a primitive wrapper.
     if "value" in payload and len([k for k in payload if not k.startswith("@")]) == 1:
         return [{"value": payload["value"]}], None, None
-    return [{k: v for k, v in payload.items() if not k.startswith("@odata.context")}], None, None
+    return [{k: v for k, v in payload.items() if not k.startswith("@odata.")}], None, None
 
 
 def expand_names(expand: str | None) -> list[str]:
@@ -301,7 +378,10 @@ def expand_names(expand: str | None) -> list[str]:
 
 
 def column_order(
-    rows: list[dict[str, Any]], entity_type: EntityType | None, select: list[str], expand: str | None = None
+    rows: list[dict[str, Any]],
+    entity_type: EntityType | ComplexType | None,
+    select: list[str],
+    expand: str | None = None,
 ) -> list[str]:
     """Columns: the selected properties, else the entity type's declared order,
     then whatever else the rows carry (open types, expands, annotations)."""
