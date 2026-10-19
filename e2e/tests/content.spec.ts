@@ -43,3 +43,14 @@ test("a shared query link opens the explorer and runs the query", async ({ page 
   await page.getByRole("button", { name: /Copy as/ }).click();
   await expect(page.getByRole("menuitem", { name: "Power Query M" })).toBeVisible();
 });
+
+test("the landing page and the sample list link to the content pages", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "OData query options cheat sheet" })).toHaveAttribute("href", "/guides/odata-query-options");
+  await page.goto("/samples");
+  await expect(page.getByRole("link", { name: "Entity sets and example queries →" }).first()).toHaveAttribute("href", /^\/samples\//);
+  await page.goto("/");
+  await page.getByRole("link", { name: "All guides and resources →" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Guides and resources" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /SAP Gateway/ })).toBeVisible();
+});

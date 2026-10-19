@@ -6,6 +6,16 @@ import { Icon, type IconName } from "./Icon";
 
 const FEATURED = ["northwind-v4", "trippin-v4", "jdbcodata-demo"];
 
+// Server-rendered pages (backend/app/content); /guides lists all of them.
+const GUIDES: [string, string][] = [
+  ["/guides/odata-query-options", "OData query options cheat sheet"],
+  ["/guides/odata-v2-vs-v4", "OData V2 vs V4 metadata"],
+  ["/sap", "SAP Gateway, RAP and CAP services"],
+  ["/power-bi", "Debugging Power BI OData.Feed errors"],
+  ["/dynamics", "Dynamics 365 and Dataverse endpoints"],
+  ["/guides", "All guides and resources →"],
+];
+
 /** Empty state: what the tool does, one-click samples, and a short FAQ for people (and crawlers) who wonder what OData is. */
 export function Landing({ onSample }: { onSample: (sample: Sample) => Promise<void> }) {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -86,6 +96,19 @@ export function Landing({ onSample }: { onSample: (sample: Sample) => Promise<vo
             </p>
           )}
         </div>
+
+        <section className="mt-10 text-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Guides</h3>
+          <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+            {GUIDES.map(([href, label]) => (
+              <li key={href}>
+                <a className="text-accent hover:underline" href={href}>
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section className="mt-10 space-y-4 text-sm text-slate-600 dark:text-slate-400">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Good to know</h3>

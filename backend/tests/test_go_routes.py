@@ -58,3 +58,8 @@ def test_share_ping_is_204() -> None:
 def test_content_faq_api() -> None:
     entries = _client().get("/api/content/faq").json()
     assert entries and all(e["question"] and e["answer_html"].startswith("<p>") for e in entries)
+
+
+def test_content_pages_api_lists_slugs() -> None:
+    slugs = _client().get("/api/content/pages").json()
+    assert "guides" in slugs and slugs == sorted(slugs)

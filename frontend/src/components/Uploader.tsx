@@ -274,19 +274,24 @@ export function Uploader({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {samples === null && !error && <p className="text-sm text-slate-500">Loading samples…</p>}
           {samples?.map((sample) => (
-            <button
-              key={sample.id}
-              type="button"
-              className="text-left rounded-md border border-slate-200 dark:border-slate-800 p-3 hover:border-accent hover:bg-blue-50/40 dark:hover:bg-blue-950/20 disabled:opacity-60"
-              disabled={busy !== null}
-              onClick={() => void run(`Loading ${sample.name}…`, () => onSample(sample))}
-            >
-              <span className="flex items-center gap-2">
-                <span className="font-medium text-sm">{sample.name}</span>
-                <span className="chip bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">V{sample.odata_version}</span>
-              </span>
-              <span className="block mt-1 text-xs text-slate-500 dark:text-slate-400">{sample.description}</span>
-            </button>
+            <div key={sample.id} className="flex flex-col rounded-md border border-slate-200 dark:border-slate-800 hover:border-accent hover:bg-blue-50/40 dark:hover:bg-blue-950/20">
+              <button
+                type="button"
+                className="flex-1 text-left p-3 pb-1 disabled:opacity-60"
+                disabled={busy !== null}
+                onClick={() => void run(`Loading ${sample.name}…`, () => onSample(sample))}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{sample.name}</span>
+                  <span className="chip bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">V{sample.odata_version}</span>
+                </span>
+                <span className="block mt-1 text-xs text-slate-500 dark:text-slate-400">{sample.description}</span>
+              </button>
+              {/* Server-rendered page about the sample (app/odata/sample_pages.py). */}
+              <a className="px-3 pb-2 text-xs text-accent hover:underline self-start" href={`/samples/${sample.id}`}>
+                Entity sets and example queries →
+              </a>
+            </div>
           ))}
         </div>
       )}

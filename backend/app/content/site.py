@@ -17,3 +17,17 @@ FAMILY: tuple[tuple[str, str, str], ...] = (
     ("odata", "OData Viewer", "/go/odata-viewer"),
     ("desktop", "Desktop app", "/go/freexmltoolkit"),
 )
+
+# /guides lists these sections in this order (app/content/pages.py, _hub). A prefix
+# ending in "/" takes every page below it; pages in no section are not listed.
+HUB_INTRO = (
+    "Guides for reading OData services: SAP, Power BI and Dynamics endpoints, query options, "
+    "V2 vs V4, the public sample services and how the viewer compares."
+)
+HUB_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Guides", ("guides/",)),
+    ("By platform", ("sap", "power-bi", "dynamics")),
+    ("Features", ("features/",)),
+    ("Sample services", ("samples/",)),
+    ("Comparisons", ("alternatives/",)),
+)

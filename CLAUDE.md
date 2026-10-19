@@ -53,6 +53,9 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   `site.py` holds the per-site constants and the FreeXmlToolkit family list — the rest of the
   package is shared with the sibling viewers, keep it in step. `app/odata/sample_pages.py` adds
   `/samples/<id>` via `register_provider`. Links into the app use the deep-link format above.
+- **Content links.** `/guides` is generated from all pages per `site.HUB_SECTIONS`; a test
+  fails on any page it cannot reach. The SPA landing links the main pages and `/guides`;
+  `GET /api/content/pages` lists the slugs that exist.
 - `backend/app/parser/security.py` — hardened lxml parser, `inspect_dtd`, and `fetch_url`
   (SSRF guard: public IPs only, pinned connection, tries every resolved address IPv4-first,
   redirect cap, byte cap, `headers=` for Accept/Authorization, `FetchHttpError` with status).
