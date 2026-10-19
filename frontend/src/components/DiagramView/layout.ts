@@ -33,6 +33,30 @@ function elk() {
   return elkPromise;
 }
 
+const MIN_LAYER_GAP = 90;
+const MAX_LAYER_GAP = 280;
+
+/** Rendered width of a RelationEdge label: 10px monospace plus px-1 padding. */
+function labelWidth(text: string | null): number {
+  return text ? text.length * 6.2 + 8 : 0;
+}
+
+/**
+ * Gap between layers wide enough for the widest edge label and the
+ * multiplicities at both ends, so nodes do not cover them. ELK's own edge
+ * labels would add a label layer per gap (90 + label + 90), far too wide.
+ * Labels run along horizontal edges only, so DOWN keeps the minimum.
+ */
+export function layerGap(graph: Graph, direction: "RIGHT" | "DOWN"): number {
+  if (direction === "DOWN") return MIN_LAYER_GAP;
+  let gap = MIN_LAYER_GAP;
+  for (const e of graph.edges) {
+    const ends = Math.max(labelWidth(e.sourceLabel), labelWidth(e.targetLabel));
+    gap = Math.max(gap, labelWidth(e.label) + 2 * ends + 24);
+  }
+  return Math.min(Math.ceil(gap), MAX_LAYER_GAP);
+}
+
 export async function layoutGraph(graph: Graph, direction: "RIGHT" | "DOWN" = "RIGHT"): Promise<Positioned> {
   if (graph.nodes.length === 0) return { positions: new Map(), width: 0, height: 0 };
   const engine = await elk();
@@ -42,7 +66,7 @@ export async function layoutGraph(graph: Graph, direction: "RIGHT" | "DOWN" = "R
     layoutOptions: {
       "elk.algorithm": "layered",
       "elk.direction": direction,
-      "elk.layered.spacing.nodeNodeBetweenLayers": "90",
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(layerGap(graph, direction)),
       "elk.spacing.nodeNode": "40",
       "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
       "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
