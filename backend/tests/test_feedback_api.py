@@ -64,7 +64,7 @@ def client() -> Iterator[TestClient]:
     original_store = app.state.feedback
     app.state.usage = UsageTracker(UsageRecorder("postgresql://fake"), geoip=None, hash_secret="s")
     try:
-        yield TestClient(app, headers={"user-agent": "pytest-browser"})
+        yield TestClient(app, headers={"user-agent": "Mozilla/5.0 (pytest-browser)"})
     finally:
         del app.state.usage
         app.state.feedback = original_store
@@ -106,7 +106,7 @@ def test_submit_stores_row_with_visitor_and_device(client: TestClient) -> None:
     assert row[:6] == ("Tree view is great", "a@b.co", "/", "https://h.example/odata/", "Products", "x")
     visitor, country, ua, device, version = row[6:]
     assert visitor and len(visitor) == 32 and "testclient" not in visitor
-    assert country is None and ua == "pytest-browser" and device == "desktop" and version
+    assert country is None and ua == "Mozilla/5.0 (pytest-browser)" and device == "desktop" and version
 
 
 def test_submit_without_tracker_has_no_visitor_hash(client: TestClient) -> None:
