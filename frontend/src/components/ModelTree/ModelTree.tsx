@@ -7,7 +7,7 @@ import { buildTreeRows, expandableIds, type TreeRow } from "./treeRows";
 
 const INDENT_PX = 14;
 
-export function ModelTree() {
+export function ModelTree({ onHide }: { onHide?: () => void }) {
   const model = useApp((s) => s.model);
   const index = useApp((s) => s.index);
   const expandedIds = useApp((s) => s.expandedIds);
@@ -55,6 +55,11 @@ export function ModelTree() {
         <button type="button" className="btn text-xs py-0.5" onClick={collapseAll} title="Collapse all">
           Collapse all
         </button>
+        {onHide && (
+          <button type="button" className="btn text-xs py-0.5 hidden lg:inline-flex" onClick={onHide} title="Hide the model tree" aria-label="Hide the model tree">
+            «
+          </button>
+        )}
       </div>
       <div className="flex-1 min-h-0">
         <Virtuoso

@@ -58,7 +58,8 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
 - **Responsive tiers.** Phone `< md` (768): one pane at a time via the bottom `MobileNav`
   (Tree / Details / Diagram / Data / Source). Tablet `md`–`lg`: tab strip + a tree drawer
   (Escape / tap outside / picking a node closes it). Desktop `≥ lg`: tree column + tabbed
-  content. `lib/useMediaQuery.ts` must stay in sync with the Tailwind screens.
+  content; the column folds away (« in its header, 🌳 Tree brings it back, `odv-tree-hidden` in
+  localStorage). `lib/useMediaQuery.ts` must stay in sync with the Tailwind screens.
 - **Expired cache entries.** `TtlCache` expiry is sliding; `api/client.ts` remembers the last
   loader and `withReload` repeats it on "Metadata not found or expired" (ids are content hashes).
 - **Usage statistics** (`docs/USAGE_STATS.md`): off unless `USAGE_DB_URL` is set. Events:

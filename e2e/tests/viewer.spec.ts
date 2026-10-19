@@ -51,6 +51,21 @@ test("tree, details, diagram, source and data explorer", async ({ page }) => {
   await expect(page.getByText(/no service to query/)).toBeVisible();
 });
 
+test("the model tree column can be hidden on desktop and stays hidden", async ({ page, isMobile }, testInfo) => {
+  test.skip(isMobile || testInfo.project.name !== "desktop", "desktop layout only");
+  await loadBundledSample(page);
+  const tree = page.getByRole("complementary", { name: "Model tree" });
+  await expect(tree).toBeVisible();
+  await page.getByRole("button", { name: "Hide the model tree" }).click();
+  await expect(tree).toBeHidden();
+  // The choice survives a new visit (localStorage).
+  await loadBundledSample(page);
+  await expect(tree).toBeHidden();
+  await page.getByRole("button", { name: "🌳 Tree" }).click();
+  await expect(tree).toBeVisible();
+  await expect(page.getByRole("button", { name: "🌳 Tree" })).toBeHidden();
+});
+
 test("search palette finds a property and reveals it", async ({ page }) => {
   await loadBundledSample(page);
   await page.keyboard.press("Control+k");

@@ -32,6 +32,16 @@ const VIEW_TABS: { mode: ViewMode; label: string; icon: string }[] = [
   { mode: "source", label: "Source", icon: "</>" },
 ];
 
+const TREE_HIDDEN_KEY = "odv-tree-hidden";
+
+function readTreeHidden(): boolean {
+  try {
+    return localStorage.getItem(TREE_HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const model = useApp((s) => s.model);
   const auth = useApp((s) => s.auth);
@@ -44,6 +54,7 @@ export default function App() {
   const loadInfo = useApp((s) => s.loadInfo);
   const [filesOpen, setFilesOpen] = useState(true);
   const [treeOpen, setTreeOpen] = useState(false); // phones: the tree is a pane; tablets: a drawer
+  const [treeHidden, setTreeHidden] = useState(readTreeHidden); // desktop: column folded away
   const [authRequired, setAuthRequired] = useState(false);
   const [arrival, setArrival] = useState<{ status: "loading" | "error"; detail: string } | null>(null);
   const atLeastMd = useMediaQuery(MD_QUERY);
@@ -51,6 +62,16 @@ export default function App() {
   const pendingHash = useRef(readHash());
   const asideRef = useRef<HTMLElement | null>(null);
   const closeTree = useCallback(() => setTreeOpen(false), []);
+  const toggleTreeColumn = useCallback(() => {
+    setTreeHidden((hidden) => {
+      try {
+        localStorage.setItem(TREE_HIDDEN_KEY, hidden ? "0" : "1");
+      } catch {
+        // storage blocked: the choice lasts for this page only
+      }
+      return !hidden;
+    });
+  }, []);
   // Tablets: the tree is a drawer. Escape, a tap outside or picking a node closes it.
   useDismiss(asideRef, treeOpen && atLeastMd && !wide, closeTree);
   useEffect(() => {
@@ -244,7 +265,7 @@ export default function App() {
         {!model ? (
           <Landing onSample={onSample} />
         ) : (
-          <div className="h-full min-h-0 flex flex-col lg:grid lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <div className={clsx("h-full min-h-0 flex flex-col lg:grid", treeHidden ? "lg:grid-cols-[minmax(0,1fr)]" : "lg:grid-cols-[22rem_minmax(0,1fr)]")}>
             {/* Tree: column on desktop, drawer on tablets, pane on phones. */}
             {treeOpen && atLeastMd && !wide && <div className="fixed inset-0 z-20 bg-black/30" aria-hidden="true" onClick={() => setTreeOpen(false)} />}
             <aside
@@ -253,14 +274,20 @@ export default function App() {
               className={clsx(
                 "min-h-0 flex-col bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 lg:border-r",
                 treeOpen ? "flex flex-1 md:flex-none md:fixed md:inset-y-0 md:left-0 md:z-30 md:w-[24rem] md:max-w-[90vw] md:shadow-2xl" : "hidden",
-                "lg:flex lg:static lg:inset-auto lg:z-auto lg:w-auto lg:max-w-none lg:shadow-none lg:h-full",
+                treeHidden ? "lg:hidden" : "lg:flex lg:static lg:inset-auto lg:z-auto lg:w-auto lg:max-w-none lg:shadow-none lg:h-full",
               )}
             >
-              <ModelTree />
+              <ModelTree onHide={wide ? toggleTreeColumn : undefined} />
             </aside>
             <div className={clsx("min-h-0 h-full flex-col", treeOpen && !atLeastMd ? "hidden" : "flex flex-1")}>
               <div className="hidden md:flex items-center gap-1 px-3 py-2 short:py-1 border-b border-slate-200 dark:border-slate-800">
-                <button type="button" className="btn lg:hidden mr-1" onClick={() => setTreeOpen((v) => !v)} aria-pressed={treeOpen} title="Model tree">
+                <button
+                  type="button"
+                  className={clsx("btn mr-1", !treeHidden && "lg:hidden")}
+                  onClick={wide ? toggleTreeColumn : () => setTreeOpen((v) => !v)}
+                  aria-pressed={wide ? !treeHidden : treeOpen}
+                  title={wide ? "Show the model tree" : "Model tree"}
+                >
                   🌳 Tree
                 </button>
                 <div className="flex gap-1" role="tablist">
