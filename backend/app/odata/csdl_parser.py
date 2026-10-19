@@ -1110,6 +1110,19 @@ def _json_container(
 
 def parse_metadata_json(data: bytes) -> ServiceModel:
     try:
+        return _parse_metadata_json(data)
+    except MetadataError:
+        raise
+    except (RecursionError, AttributeError, TypeError, KeyError, ValueError) as exc:
+        # Valid JSON in an unexpected shape ("$Reference": [1]) or nested too deeply:
+        # the visitor's document is at fault, not the server.
+        raise MetadataError(
+            "Not a valid CSDL JSON document: a member is nested too deeply or has an unexpected type."
+        ) from exc
+
+
+def _parse_metadata_json(data: bytes) -> ServiceModel:
+    try:
         doc = json.loads(data.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise MetadataError(f"Not valid JSON: {exc}") from exc

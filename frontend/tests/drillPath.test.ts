@@ -9,6 +9,9 @@ describe("drillPath", () => {
 
   it("splits paths outside key literals", () => {
     expect(pathSegments("People('a/b')/Trips")).toEqual(["People('a/b')", "Trips"]);
+    expect(pathSegments("//People/Trips//")).toEqual(["People", "Trips"]);
+    // A long run of slashes from a service's link must not hang the tab.
+    expect(pathSegments("/".repeat(100_000) + "x" + "/".repeat(100_000) + "y")).toEqual(["x", "y"]);
   });
 
   it("resolves sets, keys, navigations and complex properties", () => {

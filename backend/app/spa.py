@@ -85,7 +85,9 @@ CSP = (
     "img-src 'self' data: blob:; "
     "font-src 'self' data:; "
     "worker-src 'self' blob:; "
-    "connect-src 'self'"
+    "connect-src 'self'; "
+    # Nothing on the page needs these; closing them limits what injected markup could do.
+    "base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'"
 )
 
 SPA_HEADERS = {
@@ -93,6 +95,7 @@ SPA_HEADERS = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 }
 
 

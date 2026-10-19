@@ -253,7 +253,7 @@ def fetch_json(
         )
     try:
         payload = json.loads(body.decode("utf-8-sig"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise DataError(
             f"The service did not return valid JSON ({exc}).", 502, upstream_status=fetched.status_code
         ) from exc
@@ -326,6 +326,15 @@ def normalise_payload(
     payload: Any, model: ServiceModel
 ) -> tuple[list[dict[str, Any]], int | None, str | None]:
     """Rows, inline count and next link from a V2 or V4 JSON body."""
+    try:
+        return _normalise_payload(payload, model)
+    except RecursionError as exc:
+        raise DataError("The service answered with JSON nested too deeply to show.", 502) from exc
+
+
+def _normalise_payload(
+    payload: Any, model: ServiceModel
+) -> tuple[list[dict[str, Any]], int | None, str | None]:
     if not isinstance(payload, dict):
         raise DataError("Unexpected JSON shape: expected an object.", 502)
     if "error" in payload and isinstance(payload["error"], dict):

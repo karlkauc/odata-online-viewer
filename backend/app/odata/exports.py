@@ -2,7 +2,30 @@
 
 from __future__ import annotations
 
+import re
+
 from app.odata.model import EntityType, ServiceModel, StructuredType
+
+# Names, labels and descriptions come from an untrusted $metadata document and the
+# files get rendered by other tools: keep them from breaking out of a table cell or
+# code span, or from adding links and HTML.
+
+
+def _text(value: object) -> str:
+    """Free text for a table cell or paragraph."""
+    text = " ".join(str(value).split())
+    return re.sub(r"([\\`*_\[\]<>|])", r"\\\1", text)
+
+
+def _autolink(url: str) -> str:
+    """URL for ``<…>``: an autolink ends at the first space or angle bracket."""
+    return re.sub(r"[<>\s]", lambda m: f"%{ord(m.group()):02X}", url)
+
+
+def _code(value: object) -> str:
+    """A code span; backticks cannot be escaped inside one, so they are replaced."""
+    text = " ".join(str(value).split()).replace("`", "'").replace("|", "\\|")
+    return f"`{text}`"
 
 
 def _type_label(name: str) -> str:
@@ -22,10 +45,11 @@ def _property_rows(st: StructuredType) -> list[str]:
         if p.scale is not None:
             facets.append(f"Scale {p.scale}")
         if p.default_value is not None:
-            facets.append(f"Default `{p.default_value}`")
+            facets.append(f"Default {_code(p.default_value)}")
         rows.append(
-            f"| `{p.name}` | `{p.type}` | {'yes' if p.nullable else 'no'} | {'🔑' if p.is_key else ''} | "
-            f"{', '.join(facets)} | {p.label or ''} |"
+            f"| {_code(p.name)} | {_code(p.type)} | {'yes' if p.nullable else 'no'} | "
+            f"{'🔑' if p.is_key else ''} | "
+            f"{', '.join(facets)} | {_text(p.label or '')} |"
         )
     return rows
 
@@ -33,7 +57,7 @@ def _property_rows(st: StructuredType) -> list[str]:
 def to_markdown(model: ServiceModel) -> str:
     out: list[str] = []
     title = model.service_root or model.filename or "OData service"
-    out.append(f"# {title}")
+    out.append(f"# {_text(title)}")
     out.append("")
     out.append(
         f"OData {model.odata_version} · {model.stats.entity_type_count} entity types · "
@@ -41,43 +65,46 @@ def to_markdown(model: ServiceModel) -> str:
     )
     if model.metadata_url:
         out.append("")
-        out.append(f"Metadata: <{model.metadata_url}>")
+        out.append(f"Metadata: <{_autolink(model.metadata_url)}>")
     for schema in model.schemas:
         out.append("")
-        out.append(f"## Schema `{schema.namespace}`" + (f" (alias `{schema.alias}`)" if schema.alias else ""))
+        alias = f" (alias {_code(schema.alias)})" if schema.alias else ""
+        out.append(f"## Schema {_code(schema.namespace)}{alias}")
         for container in schema.containers:
             if container.entity_sets or container.singletons:
                 out.append("")
-                out.append(f"### Entity container `{container.name}`")
+                out.append(f"### Entity container {_code(container.name)}")
                 out.append("")
                 out.append("| Entity set | Entity type | Label |")
                 out.append("|---|---|---|")
                 for s in container.entity_sets:
-                    out.append(f"| `{s.name}` | `{s.entity_type}` | {s.label or ''} |")
+                    out.append(f"| {_code(s.name)} | {_code(s.entity_type)} | {_text(s.label or '')} |")
                 for s in container.singletons:
-                    out.append(f"| `{s.name}` (singleton) | `{s.entity_type}` | {s.label or ''} |")
+                    out.append(
+                        f"| {_code(s.name)} (singleton) | {_code(s.entity_type)} | {_text(s.label or '')} |"
+                    )
             if container.operations:
                 out.append("")
                 out.append("| Function import | HTTP | Returns | Parameters |")
                 out.append("|---|---|---|---|")
                 for op in container.operations:
-                    params = ", ".join(f"{p.name}: {p.type}" for p in op.parameters)
+                    params = ", ".join(_text(f"{p.name}: {p.type}") for p in op.parameters)
                     out.append(
-                        f"| `{op.name}` | {op.http_method or ''} | "
-                        f"`{op.return_type.type if op.return_type else ''}` | {params} |"
+                        f"| {_code(op.name)} | {_text(op.http_method or '')} | "
+                        f"{_code(op.return_type.type if op.return_type else '')} | {params} |"
                     )
         for et in schema.entity_types:
             out.append("")
-            heading = f"### Entity type `{et.name}`"
+            heading = f"### Entity type {_code(et.name)}"
             if et.base_type:
-                heading += f" : `{et.base_type}`"
+                heading += f" : {_code(et.base_type)}"
             out.append(heading)
             if et.label or et.description:
                 out.append("")
-                out.append(" — ".join(x for x in (et.label, et.description) if x))
+                out.append(" — ".join(_text(x) for x in (et.label, et.description) if x))
             out.append("")
             out.append(
-                f"Key: {', '.join(f'`{k}`' for k in et.key) or '—'}"
+                f"Key: {', '.join(_code(k) for k in et.key) or '—'}"
                 + (" (inherited)" if et.key_inherited else "")
             )
             out.append("")
@@ -88,44 +115,48 @@ def to_markdown(model: ServiceModel) -> str:
                 out.append("|---|---|---|---|---|")
                 for n in et.navigation_properties:
                     rc = ", ".join(
-                        f"{c.property} → {c.referenced_property}" for c in n.referential_constraints
+                        _text(f"{c.property} → {c.referenced_property}") for c in n.referential_constraints
                     )
                     out.append(
-                        f"| `{n.name}` | `{n.target_type}` | {n.multiplicity} | {n.partner or ''} | {rc} |"
+                        f"| {_code(n.name)} | {_code(n.target_type)} | {n.multiplicity} | "
+                        f"{_text(n.partner or '')} | {rc} |"
                     )
         for ct in schema.complex_types:
             out.append("")
-            out.append(f"### Complex type `{ct.name}`")
+            out.append(f"### Complex type {_code(ct.name)}")
             out.append("")
             out.extend(_property_rows(ct))
         for en in schema.enum_types:
             out.append("")
-            out.append(f"### Enum type `{en.name}` ({en.underlying_type}{', flags' if en.is_flags else ''})")
+            flags = ", flags" if en.is_flags else ""
+            out.append(f"### Enum type {_code(en.name)} ({_text(en.underlying_type)}{flags})")
             out.append("")
             out.append("| Member | Value |")
             out.append("|---|---|")
             for m in en.members:
-                out.append(f"| `{m.name}` | {m.value if m.value is not None else ''} |")
+                out.append(f"| {_code(m.name)} | {_text(m.value) if m.value is not None else ''} |")
         for op in schema.operations:
             out.append("")
-            bound = f" bound to `{op.bound_to}`" if op.is_bound else ""
-            out.append(f"### {op.kind.capitalize()} `{op.name}`{bound}")
+            bound = f" bound to {_code(op.bound_to)}" if op.is_bound else ""
+            out.append(f"### {op.kind.capitalize()} {_code(op.name)}{bound}")
             out.append("")
             for p in op.parameters:
-                out.append(f"- `{p.name}`: `{p.type}`" + ("" if p.nullable else " (required)"))
+                required = "" if p.nullable else " (required)"
+                out.append(f"- {_code(p.name)}: {_code(p.type)}{required}")
             if op.return_type:
-                out.append(f"- returns `{op.return_type.type}`")
+                out.append(f"- returns {_code(op.return_type.type)}")
     out.append("")
     return "\n".join(out)
 
 
 def _mermaid_id(qualified_name: str) -> str:
-    return qualified_name.replace(".", "_").replace("/", "_")
+    # Only word characters: anything else could end the entity block or start a new statement.
+    return re.sub(r"\W", "_", qualified_name, flags=re.ASCII)
 
 
 def _mermaid_type(name: str) -> str:
     base = name.rsplit(".", 1)[-1] if "." in name else name
-    return base.replace("(", "_").replace(")", "")
+    return _mermaid_id(base.replace(")", ""))
 
 
 def to_mermaid(model: ServiceModel) -> str:
@@ -137,7 +168,7 @@ def to_mermaid(model: ServiceModel) -> str:
         lines.append(f"    {_mermaid_id(et.qualified_name)} {{")
         for p in et.properties[:40]:
             marker = " PK" if p.is_key else ""
-            lines.append(f"        {_mermaid_type(p.type)} {p.name}{marker}")
+            lines.append(f"        {_mermaid_type(p.type)} {_mermaid_id(p.name)}{marker}")
         if len(et.properties) > 40:
             lines.append(f"        more _{len(et.properties) - 40}_more")
         lines.append("    }")
@@ -155,7 +186,7 @@ def to_mermaid(model: ServiceModel) -> str:
             right = {"1": "||", "0..1": "o|", "*": "o{"}[nav.multiplicity]
             lines.append(
                 f"    {_mermaid_id(et.qualified_name)} {left}--{right} "
-                f"{_mermaid_id(target.qualified_name)} : {nav.name}"
+                f"{_mermaid_id(target.qualified_name)} : {_mermaid_id(nav.name)}"
             )
         if et.base_type and et.base_type in by_name:
             lines.append(

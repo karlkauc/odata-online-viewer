@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -236,8 +237,11 @@ def to_xlsx(
                 sheet.write_datetime(r, c, value, fmt)
             elif isinstance(value, bool):
                 sheet.write_boolean(r, c, value)
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, (int, float)) and math.isfinite(value):
                 sheet.write_number(r, c, value)
+            elif isinstance(value, float):
+                # NaN / Infinity (json.loads accepts them): Excel has no such number.
+                sheet.write_string(r, c, str(value))
             else:
                 sheet.write_string(r, c, value)
     if columns:

@@ -398,3 +398,27 @@ def test_markdown_and_mermaid_exports() -> None:
     assert mermaid.startswith("erDiagram")
     assert "NorthwindModel_Category" in mermaid
     assert "}o" in mermaid and ": Products" in mermaid
+
+
+def test_exports_escape_text_from_the_metadata() -> None:
+    model = load("northwind-v4.xml")
+    order = next(t for s in model.schemas for t in s.entity_types if t.name == "Order")
+    order.label = "x | [click](javascript:alert(1)) <script>\nnext"
+    order.properties[0].name = "Bad`Name"
+    md = to_markdown(model)
+    # Escaped: no live link, no HTML tag, no extra table column.
+    assert "\\| \\[click\\](javascript" in md and "\\<script\\>" in md
+    assert " [click](" not in md and " <script>" not in md
+    assert "`Bad'Name`" in md
+    order.name = "Order}\n  Evil {"
+    mermaid = to_mermaid(model)
+    assert "Evil {" not in mermaid and "}\n  Evil" not in mermaid
+
+
+def test_malformed_csdl_json_is_a_metadata_error() -> None:
+    from app.odata.csdl_parser import MetadataError, parse_metadata
+
+    for doc in (b'{"$Version": "4.0", "$Reference": {"x": 1}}', b"[" * 100_000 + b"]" * 100_000):
+        with pytest.raises(MetadataError):
+            parse_metadata(doc if doc.startswith(b"{") else b'{"$Version":"4.0","x":' + doc + b"}")
+

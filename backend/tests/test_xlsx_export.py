@@ -243,3 +243,9 @@ def test_workbook_round_trip() -> None:
     assert wb["Data"]["D2"].data_type == "s"
     assert wb["Data"].freeze_panes == "A2"
     assert list(wb["Query"].iter_rows(values_only=True)) == [("Service", V4_ROOT), ("Rows exported", 2)]
+
+
+def test_non_finite_numbers_are_written_as_text() -> None:
+    data = to_xlsx(["v"], [{"v": float("nan")}, {"v": float("inf")}], types={}, info=[])
+    assert data[:2] == b"PK"
+

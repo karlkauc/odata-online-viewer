@@ -7,13 +7,23 @@ export interface PathTarget {
   collection: boolean;
 }
 
+/** Strip leading and trailing `/`. Not a regex: `/\/+$/` is quadratic on a long run of
+ *  slashes, and paths can come from a service's `@link` values. */
+function trimSlashes(path: string): string {
+  let start = 0;
+  let end = path.length;
+  while (start < end && path[start] === "/") start += 1;
+  while (end > start && path[end - 1] === "/") end -= 1;
+  return path.slice(start, end);
+}
+
 /** Split a resource path at `/` outside key predicates (`P('a/b')/Nav`). Mirrors the backend. */
 export function pathSegments(path: string): string[] {
   const segments: string[] = [];
   let depth = 0;
   let quoted = false;
   let current = "";
-  for (const ch of path.replace(/^\/+|\/+$/g, "")) {
+  for (const ch of trimSlashes(path)) {
     if (ch === "'") quoted = !quoted;
     else if (!quoted && ch === "(") depth += 1;
     else if (!quoted && ch === ")") depth -= 1;
