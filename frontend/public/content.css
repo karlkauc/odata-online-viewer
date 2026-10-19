@@ -31,13 +31,13 @@ body {
 a { color: var(--accent); }
 .site-header, .site-footer, .content { max-width: 46rem; margin: 0 auto; padding: 0 16px; }
 .site-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
   padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
   max-width: none;
 }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--fg); text-decoration: none; }
 .button {
-  display: inline-block; padding: 8px 14px; border-radius: 6px; background: var(--accent);
+  display: inline-block; white-space: nowrap; padding: 8px 14px; border-radius: 6px; background: var(--accent);
   color: var(--accent-fg); font-weight: 600; text-decoration: none; font-size: 15px;
 }
 .content { padding-top: 24px; padding-bottom: 48px; }
@@ -58,3 +58,7 @@ img { max-width: 100%; height: auto; }
 .faq summary { cursor: pointer; font-weight: 600; }
 .site-footer { border-top: 1px solid var(--border); padding-top: 16px; padding-bottom: 32px; font-size: 14px; color: var(--muted); max-width: none; text-align: center; }
 .site-footer p { color: var(--muted); margin: 4px 0; }
+@media (max-width: 480px) {
+  h1 { font-size: 1.55rem; }
+  .site-header .button { padding: 6px 10px; font-size: 14px; }
+}

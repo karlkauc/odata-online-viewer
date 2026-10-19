@@ -46,18 +46,24 @@ export interface Capability {
   details: string[];
 }
 
-function capability(operation: string, v4: [boolean | null, string], v2: [boolean | null, string], details: string[] = []): Capability {
+function capability(operation: string, v4: [boolean | null, string], v2: [boolean | null, string], details: string[] = [], detailSource: string | null = null): Capability {
   const [value, source] = v4[0] !== null ? v4 : v2;
-  return { operation, allowed: value, source: value !== null ? source : null, details };
+  return { operation, allowed: value, source: value !== null ? source : details.length ? detailSource : null, details };
 }
 
 /** Allowed operations of an entity set, from its annotations and (V2) its type's properties. */
 export function capabilities(setAnnotations: Annotation[], properties: Property[]): Capability[] {
   const a = setAnnotations;
   const propFlag = (name: string, value: string) => properties.filter((p) => p.annotations.some((x) => x.term === `sap:${name}` && x.value === value)).map((p) => p.name);
-  const nonFilterable = [...capPaths(a, "FilterRestrictions", "NonFilterableProperties"), ...propFlag("filterable", "false")];
-  const requiredInFilter = [...capPaths(a, "FilterRestrictions", "RequiredProperties"), ...propFlag("required-in-filter", "true")];
-  const nonSortable = [...capPaths(a, "SortRestrictions", "NonSortableProperties"), ...propFlag("sortable", "false")];
+  const v4NonFilterable = capPaths(a, "FilterRestrictions", "NonFilterableProperties");
+  const v4Required = capPaths(a, "FilterRestrictions", "RequiredProperties");
+  const v4NonSortable = capPaths(a, "SortRestrictions", "NonSortableProperties");
+  const nonFilterable = [...v4NonFilterable, ...propFlag("filterable", "false")];
+  const requiredInFilter = [...v4Required, ...propFlag("required-in-filter", "true")];
+  const nonSortable = [...v4NonSortable, ...propFlag("sortable", "false")];
+  // Property lists restrict single properties, not the operation as a whole.
+  const filterSource = v4NonFilterable.length || v4Required.length ? "Capabilities.FilterRestrictions" : "sap:filterable, sap:required-in-filter";
+  const sortSource = v4NonSortable.length ? "Capabilities.SortRestrictions" : "sap:sortable";
   return [
     capability("Create", [capFlag(a, "InsertRestrictions", "Insertable"), "Capabilities.InsertRestrictions"], [sapFlag(a, "creatable"), "sap:creatable"]),
     capability("Update", [capFlag(a, "UpdateRestrictions", "Updatable"), "Capabilities.UpdateRestrictions"], [sapFlag(a, "updatable"), "sap:updatable"]),
@@ -65,14 +71,16 @@ export function capabilities(setAnnotations: Annotation[], properties: Property[
     capability(
       "Filter",
       [capFlag(a, "FilterRestrictions", "Filterable"), "Capabilities.FilterRestrictions"],
-      [nonFilterable.length || requiredInFilter.length ? true : null, "sap:filterable"],
+      [null, ""],
       [...nonFilterable.map((p) => `${p}: not filterable`), ...requiredInFilter.map((p) => `${p}: required in $filter`)],
+      filterSource,
     ),
     capability(
       "Sort",
       [capFlag(a, "SortRestrictions", "Sortable"), "Capabilities.SortRestrictions"],
-      [nonSortable.length ? true : null, "sap:sortable"],
+      [null, ""],
       nonSortable.map((p) => `${p}: not sortable`),
+      sortSource,
     ),
     capability("Search", [capFlag(a, "SearchRestrictions", "Searchable"), "Capabilities.SearchRestrictions"], [sapFlag(a, "searchable"), "sap:searchable"]),
     capability("Paging ($top/$skip)", [boolTerm(a, "TopSupported"), "Capabilities.TopSupported"], [sapFlag(a, "pageable"), "sap:pageable"]),

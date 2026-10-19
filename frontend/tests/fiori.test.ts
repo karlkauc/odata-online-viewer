@@ -24,7 +24,7 @@ describe("capabilities", () => {
     const by = Object.fromEntries(rows.map((r) => [r.operation, r]));
     expect(by.Delete).toMatchObject({ allowed: false, source: "Capabilities.DeleteRestrictions" });
     expect(by.Create.allowed).toBeNull();
-    expect(by.Filter.details).toEqual(["ID: not filterable", "Year: required in $filter"]);
+    expect(by.Filter).toMatchObject({ allowed: null, source: "Capabilities.FilterRestrictions", details: ["ID: not filterable", "Year: required in $filter"] });
     expect(by["Paging ($top/$skip)"].allowed).toBe(false);
     expect(hasCapabilityInfo(rows)).toBe(true);
   });
@@ -34,7 +34,7 @@ describe("capabilities", () => {
     const by = Object.fromEntries(rows.map((r) => [r.operation, r]));
     expect(by.Create).toMatchObject({ allowed: false, source: "sap:creatable" });
     expect(by["Paging ($top/$skip)"].allowed).toBe(true);
-    expect(by.Sort.details).toEqual(["Name: not sortable"]);
+    expect(by.Sort).toMatchObject({ allowed: null, source: "sap:sortable", details: ["Name: not sortable"] });
   });
 
   it("reports nothing for an unannotated set", () => {

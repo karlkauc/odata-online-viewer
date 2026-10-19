@@ -15,6 +15,14 @@ test("no horizontal overflow on the landing page", async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
+test("no horizontal overflow on content pages with wide tables", async ({ page }) => {
+  for (const path of ["/samples/northwind-v2", "/guides/odata-query-options", "/alternatives/xodata"]) {
+    await page.goto(path);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, path).toBeLessThanOrEqual(1);
+  }
+});
+
 test("panes switch via the bottom nav on phones or the tab strip on tablets", async ({ page }, testInfo) => {
   await loadBundledSample(page);
   if (testInfo.project.name === "phone") {
