@@ -33,6 +33,16 @@ from app.odata.service_url import (
             "https://h.example/odata/$metadata?sap-client=100",
             "https://h.example/odata/?sap-client=100",
         ),
+        (
+            "https://services.odata.org/V4/Northwind/Northwind.svc/Categories?$top=50&$count=true",
+            "https://services.odata.org/V4/Northwind/Northwind.svc/Categories/$metadata",
+            "https://services.odata.org/V4/Northwind/Northwind.svc/Categories/",
+        ),
+        (
+            "https://h.example/odata/Products?%24filter=Price%20gt%205&sap-client=100",
+            "https://h.example/odata/Products/$metadata?sap-client=100",
+            "https://h.example/odata/Products/?sap-client=100",
+        ),
     ],
 )
 def test_split(given: str, metadata: str, root: str) -> None:

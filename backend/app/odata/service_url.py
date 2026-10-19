@@ -4,8 +4,10 @@ Accepted inputs: a service root (``https://host/odata/``), the metadata URL
 itself (``…/$metadata``, also percent-encoded), either with query parameters
 such as SAP's ``sap-client``, or the URL of a resource inside the service
 (``…/odata/Customers``, ``…/odata/Customers(1)/Orders``): then the parents are
-tried as service root, see :func:`candidate_service_urls`. ``$format`` is dropped because the metadata is
-requested with an ``Accept`` header instead.
+tried as service root, see :func:`candidate_service_urls`. System query options
+(``$format``, ``$top``, ``$count``, …) are dropped: they belong to the resource
+request, servers answer ``$metadata?$top=…`` with 400, and the metadata is
+requested with an ``Accept`` header anyway.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ def split_service_url(url: str) -> ServiceUrls:
             "https://services.odata.org/V4/Northwind/Northwind.svc/"
         )
     base_path, _ = _strip_metadata(parts.path or "")
-    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k.lower() != "$format"]
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if not k.startswith("$")]
     query_string = _encode(query)
     root = urlunsplit((parts.scheme, parts.netloc, base_path + "/", query_string, ""))
     metadata = urlunsplit((parts.scheme, parts.netloc, base_path + "/" + METADATA_SEGMENT, query_string, ""))
