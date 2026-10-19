@@ -1,4 +1,4 @@
-import type { Cell, EntityType, QueryResponse, StructuredType } from "../types/model";
+import type { Cell, EntityType, NavigationProperty, QueryResponse, StructuredType } from "../types/model";
 import { baseChain, effectiveMembers, stripCollection, type ModelIndex } from "./modelIndex";
 
 /** What a resource path addresses; `type` is null for primitives and unknown members. */
@@ -166,6 +166,33 @@ export function drillPath(
   const key = target.collection ? keyPredicate(index, target.type, row, v4) : "";
   if (key === null) return null;
   return `${path}${key}/${column}`;
+}
+
+/** How the rows of a result lead to other entities. */
+export interface RowLinks {
+  /** Foreign-key columns: local property of a single-valued navigation's referential constraint → that navigation. */
+  foreignKeys: Map<string, NavigationProperty>;
+  /** Navigations to offer as link columns: not expanded into the result and not reachable through a shown key column. */
+  navigations: NavigationProperty[];
+}
+
+/**
+ * Links for the rows at `path` with the given result columns, so `KundeId` can lead to its `Kunde` and a customer to
+ * its `Bestellungen` without $expand. Null when the rows are no addressable entities (complex values, primitives).
+ */
+export function rowLinks(index: ModelIndex, path: string, columns: string[]): RowLinks | null {
+  const target = resolvePath(index, path);
+  if (!target.type || target.type.kind !== "entity") return null;
+  const shown = new Set(columns);
+  const foreignKeys = new Map<string, NavigationProperty>();
+  const navigations: NavigationProperty[] = [];
+  for (const nav of effectiveMembers(index, target.type).navigations) {
+    if (shown.has(nav.name)) continue; // expanded or a V2 deferred link: the cell already drills
+    const keyColumns = nav.is_collection ? [] : nav.referential_constraints.map((c) => c.property).filter((p) => shown.has(p));
+    for (const column of keyColumns) if (!foreignKeys.has(column)) foreignKeys.set(column, nav);
+    if (keyColumns.length === 0) navigations.push(nav);
+  }
+  return { foreignKeys, navigations };
 }
 
 /** A table built from a cell's inline value, for levels the service cannot address. */

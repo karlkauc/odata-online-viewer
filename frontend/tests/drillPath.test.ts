@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drillPath, keyLiteral, localResult, pathSegments, resolvePath } from "../src/lib/drillPath";
+import { drillPath, keyLiteral, localResult, pathSegments, resolvePath, rowLinks } from "../src/lib/drillPath";
 import { buildIndex } from "../src/lib/modelIndex";
 import { sampleModel } from "./fixtures/sampleModel";
 
@@ -57,6 +57,38 @@ describe("drillPath", () => {
     const row = { Trips: { "@link": "https://example.org/svc/People('a%20b')/Trips" } };
     expect(drillPath(index, root, false, "People", row, "Trips")).toBe("People('a b')/Trips");
     expect(drillPath(index, root, false, "People", { Trips: { "@link": "https://evil.example/x" } }, "Trips")).toBeNull();
+  });
+
+  it("links foreign-key columns and offers the other navigations", () => {
+    // Trip with a foreign key: OwnerName → Owner (Person.UserName)
+    const model = structuredClone(sampleModel);
+    const trip = model.schemas[0].entity_types.find((t) => t.name === "Trip")!;
+    trip.properties.push({ ...trip.properties[0], id: "prop:Trip.Trip/OwnerName", name: "OwnerName", type: "Edm.String", is_key: false });
+    trip.navigation_properties.push({
+      ...sampleModel.schemas[0].entity_types[0].navigation_properties[1],
+      id: "nav:Trip.Trip/Owner",
+      name: "Owner",
+      target_type: "Trip.Person",
+      is_collection: false,
+      multiplicity: "0..1",
+      referential_constraints: [{ property: "OwnerName", referenced_property: "UserName" }],
+    });
+    const index = buildIndex(model);
+    const names = (l: ReturnType<typeof rowLinks>) => ({
+      foreignKeys: [...(l?.foreignKeys ?? new Map()).entries()].map(([c, n]) => `${c}->${n.name}`),
+      navigations: l?.navigations.map((n) => n.name),
+    });
+    // OwnerName is the key column of Owner: linked in place, no extra column
+    expect(names(rowLinks(index, "Trips", ["TripId", "OwnerName"]))).toEqual({ foreignKeys: ["OwnerName->Owner"], navigations: [] });
+    // without the key column the navigation gets its own link column
+    expect(names(rowLinks(index, "Trips", ["TripId"]))).toEqual({ foreignKeys: [], navigations: ["Owner"] });
+    // collections never mark a column; expanded navigations already drill in their cell
+    expect(names(rowLinks(index, "People", ["UserName", "Trips"]))).toEqual({ foreignKeys: [], navigations: ["Friends"] });
+    expect(names(rowLinks(index, "People('x')/Trips", ["TripId", "OwnerName"])).foreignKeys).toEqual(["OwnerName->Owner"]);
+    // rows that are no entities have no links
+    expect(rowLinks(index, "People('x')/Address", ["City"])).toBeNull();
+    // and the link drills through the row's key
+    expect(drillPath(index, root, true, "Trips", { TripId: 7, OwnerName: "russell" }, "Owner")).toBe("Trips(7)/Owner");
   });
 
   it("builds a local table from an inline value", () => {

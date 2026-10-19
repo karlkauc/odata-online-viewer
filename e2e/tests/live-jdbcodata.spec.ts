@@ -205,15 +205,8 @@ test("aggregation with $apply matches the service", async ({ page, request }) =>
 
 test("wrong password is explained, anonymous access uses the demo user", async ({ page, request }) => {
   await loadService(page, SERVICE, USER, "falsch");
-  // $metadata is served from the snapshot; the wrong password shows up on the first data request
-  const metadataError = page.getByRole("alert");
-  if (await metadataError.isVisible().catch(() => false)) {
-    await expect(metadataError).toContainText(/401|user name or password/);
-  } else {
-    await openData(page, "Kunden");
-    await page.getByRole("button", { name: /Run$/ }).click();
-    await expect(page.getByRole("alert")).toContainText(/401|user name or password|credentials/i, { timeout: 30_000 });
-  }
+  // JdbcOdata checks the login before it hands out $metadata, so loading the service already fails
+  await expect(page.getByRole("alert")).toContainText(/401|user name or password/, { timeout: 30_000 });
 
   await loadService(page, SERVICE, null);
   await openData(page, "Produkte");
@@ -234,11 +227,38 @@ test("drilling into a collection cell queries that row's values; Back restores t
 
   await page.locator("tbody tr").first().getByRole("button", { name: `[${categories.length} item${categories.length === 1 ? "" : "s"}]` }).click();
   const path = `Bestellungen(${first.BestellungId})/Kategorien`;
-  await expect(page.locator("code").filter({ hasText: `/${path}?` })).toBeVisible({ timeout: 30_000 });
+  // complete (unpaged) answers are requested without query options
+  const shown = new RegExp(`/${path.replace(/[()]/g, "\\$&")}(\\?|$)`);
+  await expect(page.locator("code").filter({ hasText: shown })).toBeVisible({ timeout: 30_000 });
   const expected = await (await direct(request, path)).json();
   expect((await resultRows(page)).map((r) => r.value)).toEqual(expected.value);
 
   await page.getByRole("button", { name: "‹ Back" }).click();
   await expect(page.getByRole("button", { name: "‹ Back" })).toHaveCount(0);
   expect(await resultRows(page)).toEqual(before);
+});
+
+test("foreign keys and navigations link to the related rows without $expand", async ({ page, request }) => {
+  await loadService(page);
+  await openData(page, "Bestellungen");
+  await run(page);
+  // KundeId is the key column of the navigation Kunde: its values open the customer
+  const header = page.locator("thead th").filter({ hasText: /^KundeId/ });
+  await expect(header.locator("[title^='Foreign key: KundeId leads to Kunde']")).toHaveCount(1);
+  const first = (await resultRows(page))[0] as { BestellungId: number; KundeId: number };
+  const expected = await (await direct(request, `Kunden(${first.KundeId})?$select=Name`)).json();
+  await page.locator("tbody tr").first().getByRole("button", { name: String(first.KundeId) }).click();
+  await expect(page.getByRole("navigation", { name: "Drill-down path" })).toContainText("/Kunde");
+  await expect(page.getByRole("cell", { name: expected.Name, exact: true })).toBeVisible({ timeout: 30_000 });
+
+  // a customer offers its orders (Bestellungen) as a link column
+  await page.getByRole("button", { name: "‹ Back" }).click();
+  await openData(page, "Kunden");
+  await run(page);
+  await expect(page.locator("thead th", { hasText: "→ Bestellungen" })).toBeVisible();
+  const customer = (await resultRows(page))[0] as { KundeId: number };
+  const orders = await directCount(request, `Kunden(${customer.KundeId})/Bestellungen`);
+  await page.locator("tbody tr").first().getByRole("button", { name: "Bestellungen ›" }).click();
+  await expect(page.getByRole("navigation", { name: "Drill-down path" })).toContainText("/Bestellungen");
+  await expect.poll(() => shownCount(page), { timeout: 30_000 }).toBe(orders);
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ApiError, exportEntitySet, queryEntitySet } from "../../api/client";
-import { drillPath, localResult, resolvePath } from "../../lib/drillPath";
+import { drillPath, localResult, resolvePath, rowLinks } from "../../lib/drillPath";
 import { effectiveMembers, shortType } from "../../lib/modelIndex";
 import { nextSort, orderbyFor, parseOrderby, sortableType, sortRows, type Sort } from "../../lib/tableSort";
 import { useCopy } from "../../lib/useCopy";
@@ -230,6 +230,14 @@ export function DataExplorer() {
   };
 
   const drillable = (value: Cell | undefined) => value !== null && typeof value === "object";
+
+  // Foreign-key columns lead to their entity, other navigations get link columns (no $expand needed).
+  const links = useMemo(
+    () => (index && data.entitySet && data.result && !data.local ? rowLinks(index, data.entitySet, data.result.columns) : null),
+    [index, data.entitySet, data.result, data.local],
+  );
+  const reachable = (row: Record<string, Cell>, navigation: string) =>
+    !!model && !!index && !!data.entitySet && drillPath(index, model.service_root, v4, data.entitySet, row, navigation) !== null;
 
   // Drilled values and unpaged answers are complete and have no query to repeat.
   const clientSort = data.local || data.result?.paged === false;
@@ -520,6 +528,8 @@ export function DataExplorer() {
                 <th className="text-right px-2 py-1 text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800 w-8">#</th>
                 {result.columns.map((c) => {
                   const isKey = fields.find((f) => f.name === c)?.isKey;
+                  const fkTo = links?.foreignKeys.get(c);
+                  const fkTitle = fkTo ? `Foreign key: ${c} leads to ${fkTo.name} (${shortType(fkTo.target_type)})` : undefined;
                   const active = sort?.column === c ? sort.dir : null;
                   const sortable = clientSort || serverSortable.has(c);
                   return (
@@ -534,10 +544,11 @@ export function DataExplorer() {
                           className="group inline-flex items-center gap-1 font-semibold hover:text-accent dark:hover:text-accent-dark disabled:cursor-wait"
                           disabled={data.loading}
                           onClick={() => sortBy(c)}
-                          title={`Sort by ${c} ${active === "asc" ? "descending" : "ascending"}`}
+                          title={`${fkTitle ? fkTitle + ". " : ""}Sort by ${c} ${active === "asc" ? "descending" : "ascending"}`}
                         >
                           {c}
                           {isKey && <KeyIcon size={11} />}
+                          {fkTo && <Icon name="link" size={11} className="text-accent dark:text-accent-dark" />}
                           <Icon
                             name={active === "asc" ? "arrowUp" : active === "desc" ? "arrowDown" : "arrowUpDown"}
                             size={12}
@@ -545,23 +556,60 @@ export function DataExplorer() {
                           />
                         </button>
                       ) : (
-                        <>
+                        <span title={fkTitle}>
                           {c}
                           {isKey && <KeyIcon size={11} className="ml-1 inline align-[-1px]" />}
-                        </>
+                          {fkTo && <Icon name="link" size={11} className="ml-1 inline align-[-1px] text-accent dark:text-accent-dark" />}
+                        </span>
                       )}
                     </th>
                   );
                 })}
+                {links?.navigations.map((n) => (
+                  <th
+                    key={`nav:${n.name}`}
+                    className="text-left px-2 py-1 font-semibold font-mono whitespace-nowrap border-b border-slate-200 dark:border-slate-800 text-slate-500"
+                    title={`Navigation to ${shortType(n.target_type)}${n.is_collection ? " (many)" : ""}`}
+                  >
+                    → {n.name}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {sortedRows.map((row, i) => (
                 <tr key={i} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/40 hover:bg-blue-50/60 dark:hover:bg-blue-950/30">
                   <td className="text-right px-2 py-1 text-[10px] text-slate-400 tabular-nums align-top">{offset + i + 1}</td>
-                  {result.columns.map((c) => (
-                    <td key={c} className="px-2 py-1 whitespace-nowrap max-w-[28rem] overflow-hidden text-ellipsis align-top">
-                      <CellView value={row[c] ?? null} onOpen={drillable(row[c]) ? () => openCell(row, c) : undefined} />
+                  {result.columns.map((c) => {
+                    const fk = links?.foreignKeys.get(c);
+                    const value = row[c] ?? null;
+                    return (
+                      <td key={c} className="px-2 py-1 whitespace-nowrap max-w-[28rem] overflow-hidden text-ellipsis align-top">
+                        {fk && value !== null && reachable(row, fk.name) ? (
+                          <button
+                            type="button"
+                            className={clsx(DRILL, "inline-flex items-center gap-1")}
+                            title={`Open ${fk.name} (${shortType(fk.target_type)})`}
+                            onClick={() => openCell(row, fk.name)}
+                          >
+                            <CellView value={value} />
+                            <Icon name="link" size={11} />
+                          </button>
+                        ) : (
+                          <CellView value={value} onOpen={drillable(row[c]) ? () => openCell(row, c) : undefined} />
+                        )}
+                      </td>
+                    );
+                  })}
+                  {links?.navigations.map((n) => (
+                    <td key={`nav:${n.name}`} className="px-2 py-1 whitespace-nowrap align-top">
+                      {reachable(row, n.name) ? (
+                        <button type="button" className={DRILL} title={`Open ${n.name} (${shortType(n.target_type)})`} onClick={() => openCell(row, n.name)}>
+                          {n.name} ›
+                        </button>
+                      ) : (
+                        <span className="text-slate-400" title="The row has no key to address it">–</span>
+                      )}
                     </td>
                   ))}
                 </tr>
