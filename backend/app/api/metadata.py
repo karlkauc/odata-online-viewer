@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -20,7 +21,7 @@ from app.odata.exports import to_markdown, to_mermaid
 from app.odata.model import ServiceModel
 from app.odata.service_url import candidate_service_urls, service_root_from_metadata_url
 from app.parser.errors import clean_input, utf8_bytes
-from app.parser.security import FetchHttpError, SecurityError, fetch_url
+from app.parser.security import FetchHttpError, SecurityError, fetch_url, url_origin
 from app.rate_limit import READ_LIMIT, WRITE_LIMIT, limiter
 from app.usage.context import emit
 from app.usage.events import schema_display_name
@@ -176,6 +177,17 @@ def load_from_url(url: str, auth: AuthPayload | None, *, source: str = "url") ->
             _describe_http_error(exc, candidates[0].metadata_url, auth is not None),
             schema_name=schema_display_name("url", candidates[0].metadata_url),
         )
+    if auth is not None and url_origin(fetched.url) != url_origin(urls.metadata_url):
+        # The data explorer would send the credentials to the new origin; the
+        # visitor entered them for the URL they typed.
+        raise reject(
+            "metadata_load",
+            source,
+            400,
+            f"The service redirected to {_origin_text(fetched.url)}; credentials are only used for "
+            f"{_origin_text(urls.metadata_url)}. Enter the final service URL instead.",
+            schema_name=schema_display_name("url", urls.metadata_url),
+        )
     notices = []
     if urls is not candidates[0]:
         notices.append(
@@ -191,6 +203,11 @@ def load_from_url(url: str, auth: AuthPayload | None, *, source: str = "url") ->
         auth_used=auth is not None,
         notices=notices,
     )
+
+
+def _origin_text(url: str) -> str:
+    scheme, host, port = url_origin(url)
+    return f"{scheme}://{host}" + ("" if port in (80, 443) else f":{port}")
 
 
 def _looks_like_metadata(content: bytes) -> bool:
@@ -220,7 +237,12 @@ def _describe_http_error(exc: FetchHttpError, url: str, had_auth: bool) -> str:
 @limiter.limit(WRITE_LIMIT)
 async def upload_metadata(request: Request, file: UploadFile) -> ServiceModel:
     content = await read_upload(file, event_type="metadata_load")
-    return _parse_and_store(content, filename=file.filename or "metadata.xml", source="upload")
+    # Parsing and fetching run off the event loop: one large document or slow
+    # service would otherwise stall every request of this single-process app.
+    # to_thread copies the ContextVar that ``emit`` reads.
+    return await asyncio.to_thread(
+        _parse_and_store, content, filename=file.filename or "metadata.xml", source="upload"
+    )
 
 
 @router.post("/metadata/text", response_model=ServiceModel)
@@ -229,13 +251,13 @@ async def upload_metadata_text(request: Request, payload: TextPayload) -> Servic
     stripped = payload.content.lstrip()
     data = payload.content.encode("utf-8") if stripped.startswith("{") else utf8_bytes(payload.content)
     reject_oversized_text(data, event_type="metadata_load", filename=payload.filename)
-    return _parse_and_store(data, filename=payload.filename, source="text")
+    return await asyncio.to_thread(_parse_and_store, data, filename=payload.filename, source="text")
 
 
 @router.post("/metadata/url", response_model=ServiceModel)
 @limiter.limit(WRITE_LIMIT)
 async def upload_metadata_url(request: Request, payload: UrlPayload) -> ServiceModel:
-    return load_from_url(payload.url, payload.auth)
+    return await asyncio.to_thread(load_from_url, payload.url, payload.auth)
 
 
 def get_stored(metadata_id: str) -> StoredMetadata:

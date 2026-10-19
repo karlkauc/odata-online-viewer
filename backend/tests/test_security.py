@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from lxml import etree
 
+from app.config import settings
 from app.main import app
 from app.parser import security
 from app.parser.security import SecurityError, _verify_url, fetch_url, inspect_dtd, normalize_url
@@ -164,3 +166,64 @@ def test_comment_split_xxe_through_the_api(client: TestClient, tmp_path) -> None
     r = client.post("/api/metadata/text", json={"content": doc, "filename": "x.xml"})
     assert r.status_code == 400
     assert "CANARY-SECRET" not in r.text
+
+
+# --- Credentials and redirects ----------------------------------------------
+
+
+def _mock_network(monkeypatch: pytest.MonkeyPatch, handler) -> None:
+    monkeypatch.setattr(security, "_resolve_all_addrs", lambda host: ["93.184.216.34"])
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        security.httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)
+    )
+
+
+@pytest.mark.parametrize(
+    "location",
+    ["http://svc.example/odata/$metadata", "https://svc.example:8443/odata/$metadata"],
+)
+def test_credentials_are_dropped_when_a_redirect_changes_the_origin(
+    monkeypatch: pytest.MonkeyPatch, location: str
+) -> None:
+    sent: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.headers.get("authorization"))
+        if len(sent) == 1:
+            return httpx.Response(302, headers={"location": location})
+        return httpx.Response(200, content=b"<x/>")
+
+    _mock_network(monkeypatch, handler)
+    fetch_url("https://svc.example/odata/$metadata", headers={"Authorization": "Basic eDp5"})
+    assert sent == ["Basic eDp5", None]
+
+
+def test_credentials_follow_a_redirect_on_the_same_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.headers.get("authorization"))
+        if len(sent) == 1:
+            return httpx.Response(302, headers={"location": "/other/$metadata"})
+        return httpx.Response(200, content=b"<x/>")
+
+    _mock_network(monkeypatch, handler)
+    fetch_url("https://svc.example/odata/$metadata", headers={"Authorization": "Basic eDp5"})
+    assert sent == ["Basic eDp5", "Basic eDp5"]
+
+
+def test_a_dripping_server_hits_the_overall_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_network(monkeypatch, lambda request: httpx.Response(200, content=iter([b"<x", b"/>"])))
+    monkeypatch.setattr(settings, "fetch_deadline_seconds", -1)
+    with pytest.raises(SecurityError, match="too slow"):
+        fetch_url("https://svc.example/odata/$metadata")
+
+
+def test_urls_with_userinfo_are_refused(client: TestClient) -> None:
+    with pytest.raises(SecurityError, match="user name or password"):
+        security._verify_url_all("https://u:p@svc.example/odata/")
+    r = client.post("/api/metadata/url", json={"url": "https://bob:s3cret@svc.example/odata/"})
+    assert r.status_code == 400
+    assert "credential fields" in r.json()["detail"]
+    assert "s3cret" not in r.text

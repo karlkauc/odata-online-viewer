@@ -14,6 +14,7 @@ import { SearchPalette } from "./components/SearchPalette";
 import { TextView } from "./components/TextView/TextView";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Uploader } from "./components/Uploader";
+import { urlOrigin } from "./lib/serviceUrl";
 import { readArrival, readHash, writeHash } from "./lib/deepLink";
 import { GITHUB_REPO_URL, SPONSOR_GO, XML_VIEWER_URL, XSD_VIEWER_URL, openAbout, openFeedback, openSearch } from "./lib/links";
 import { useDismiss } from "./lib/useDismiss";
@@ -114,7 +115,10 @@ export default function App() {
     async (url: string, credentials: Auth | null) => {
       try {
         const loaded = await loadMetadataUrl(url, credentials);
-        setAuth(credentials);
+        // Data requests go to the service root; keep the credentials only if it is
+        // still the origin the visitor typed them for (the backend refuses a
+        // redirect elsewhere, this guards the client side too).
+        setAuth(credentials && urlOrigin(loaded.service_root ?? "") === urlOrigin(url) ? credentials : null);
         apply(loaded, { kind: "url", url });
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) setAuthRequired(true);
@@ -251,6 +255,7 @@ export default function App() {
               defaultMode={isSamplesRoute ? "samples" : "url"}
               initialUrl={readArrival().url ?? ""}
               auth={auth}
+              serviceRoot={model?.service_root ?? null}
               authRequired={authRequired}
               onUrl={onUrl}
               onText={onText}

@@ -24,7 +24,7 @@ from app.api.metadata import router as metadata_router
 from app.api.samples import router as samples_router
 from app.config import settings
 from app.logging_setup import configure_logging, new_request_id, request_id_var
-from app.rate_limit import limiter
+from app.rate_limit import client_ip, limiter
 from app.spa import mount_spa
 from app.usage.context import RequestUsage, UsageTracker, bind, unbind
 from app.usage.feedback import FeedbackStore
@@ -167,7 +167,7 @@ async def request_logging(request: Request, call_next):
     usage: RequestUsage | None = (
         RequestUsage(
             tracker=tracker,
-            ip=request.client.host if request.client else None,
+            ip=client_ip(request),
             user_agent=request.headers.get("user-agent"),
             referrer=request.headers.get("referer"),
         )

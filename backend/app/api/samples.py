@@ -3,6 +3,7 @@ their metadata for when the live service is down."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from functools import lru_cache
@@ -64,7 +65,7 @@ async def load_sample(request: Request, sample_id: str, live: bool = True) -> Se
     entry = _find(sample_id)
     if live and entry.get("service_url"):
         try:
-            return load_from_url(entry["service_url"], None, source="sample")
+            return await asyncio.to_thread(load_from_url, entry["service_url"], None, source="sample")
         except HTTPException as exc:
             logger.warning("live sample %s unavailable: %s", sample_id, exc.detail)
             notice = (

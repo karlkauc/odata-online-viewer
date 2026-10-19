@@ -17,6 +17,7 @@ class Settings:
     log_level: str
     static_dir: str
     fetch_timeout_seconds: float
+    fetch_deadline_seconds: float
     fetch_max_response_mb: int
     fetch_max_redirects: int
     cors_allow_origins: tuple[str, ...]
@@ -37,6 +38,7 @@ class Settings:
     data_export_max_rows: int
     data_export_deadline_seconds: float
     site_origin: str
+    trusted_proxy_hops: int
 
     @property
     def usage_enabled(self) -> bool:
@@ -91,6 +93,8 @@ def load_settings() -> Settings:
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         static_dir=os.getenv("STATIC_DIR", "/app/static"),
         fetch_timeout_seconds=float(os.getenv("FETCH_TIMEOUT_SECONDS", "10")),
+        # Whole fetch incl. redirects; FETCH_TIMEOUT_SECONDS only bounds each read.
+        fetch_deadline_seconds=float(os.getenv("FETCH_DEADLINE_SECONDS", "60")),
         fetch_max_response_mb=int(os.getenv("FETCH_MAX_RESPONSE_MB", "10")),
         fetch_max_redirects=int(os.getenv("FETCH_MAX_REDIRECTS", "3")),
         cors_allow_origins=_parse_origins(os.getenv("CORS_ALLOW_ORIGINS", "")),
@@ -116,6 +120,9 @@ def load_settings() -> Settings:
         data_export_deadline_seconds=float(os.getenv("DATA_EXPORT_DEADLINE_SECONDS", "90")),
         # Canonical origin written into the SPA shell (title/canonical/og:url per route).
         site_origin=os.getenv("SITE_ORIGIN", "https://www.odata-viewer.online").rstrip("/"),
+        # Proxies in front of the app that append to X-Forwarded-For (Cloud Run: 1;
+        # 0 = use the TCP peer, e.g. when uvicorn is reachable directly).
+        trusted_proxy_hops=int(os.getenv("TRUSTED_PROXY_HOPS", "1")),
     )
 
 

@@ -49,6 +49,11 @@ def split_service_url(url: str) -> ServiceUrls:
             "Enter the URL of an OData service, for example "
             "https://services.odata.org/V4/Northwind/Northwind.svc/"
         )
+    if "@" in parts.netloc:
+        # Would end up in the service root, share links, exports and usage stats.
+        raise ValueError(
+            "Enter the user name and password in the credential fields, not in the URL."
+        )
     base_path, _ = _strip_metadata(parts.path or "")
     query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if not k.startswith("$")]
     query_string = _encode(query)

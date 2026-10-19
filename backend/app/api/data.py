@@ -106,7 +106,8 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
             if payload.next_link
             else build_query(model, payload.entity_set, payload.options, single=not target.paged)
         )
-        body, status, _ctype, _dur = fetch_json(
+        body, status, _ctype, _dur = await run_in_threadpool(
+            fetch_json,
             url,
             model,
             payload.auth,
@@ -270,7 +271,8 @@ async def raw_request(request: Request, payload: RawPayload) -> RawResponse:
         if not model.odata_version.startswith("4") and not any(k == "$format" for k, _ in pairs):
             pairs.append(("$format", "json"))
         url = join_service_path(model.service_root, path, [(k, v) for k, v in pairs])
-        body, status, ctype, _dur = fetch_json(
+        body, status, ctype, _dur = await run_in_threadpool(
+            fetch_json,
             url,
             model,
             payload.auth,

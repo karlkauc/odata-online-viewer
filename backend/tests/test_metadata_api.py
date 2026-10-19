@@ -204,6 +204,23 @@ def test_url_load_with_credentials_sends_basic_auth_but_never_logs_it(
     assert "s3cret" not in dumped and "ZXhjZWxfZGVtbzpzM2NyZXQ" not in dumped
 
 
+def test_url_load_with_credentials_refuses_a_redirect_to_another_host(
+    client: TestClient, fetch: FakeFetch
+) -> None:
+    # The data explorer would send the credentials to the redirect target.
+    fetch.responses["https://odata.status20.net/odata/$metadata"] = FetchedResource(
+        url="https://evil.example/svc/$metadata",
+        content=(SAMPLES / "jdbcodata-demo.xml").read_bytes(),
+        content_type="application/xml",
+    )
+    r = client.post(
+        "/api/metadata/url",
+        json={"url": "https://odata.status20.net/odata/", "auth": {"username": "u", "password": "p"}},
+    )
+    assert r.status_code == 400
+    assert "https://evil.example" in r.json()["detail"]
+
+
 def test_url_load_401_is_reported_as_auth_required(
     client: TestClient, fetch: FakeFetch, recorder: ListRecorder
 ) -> None:

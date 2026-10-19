@@ -14,6 +14,7 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -234,6 +235,12 @@ def normalize_url(url: str) -> str:
     return url
 
 
+def url_origin(url: str) -> tuple[str, str, int]:
+    """``(scheme, host, port)`` with the default port filled in."""
+    parsed = httpx.URL(url)
+    return parsed.scheme, parsed.host, parsed.port or (443 if parsed.scheme == "https" else 80)
+
+
 def _verify_url(url: str) -> tuple[str, str]:
     """Validate ``url`` and return ``(host, pinned_ip)``; see :func:`_verify_url_all`."""
     host, addrs = _verify_url_all(url)
@@ -251,6 +258,8 @@ def _verify_url_all(url: str) -> tuple[str, list[str]]:
     host = parsed.host
     if not host:
         raise SecurityError(f"URL has no host: {url!r}")
+    if parsed.userinfo:
+        raise SecurityError("URLs with a user name or password are not supported")
     if not _host_is_allowed(host):
         raise SecurityError(f"host {host!r} is not on ALLOWED_SCHEMA_HOSTS lockdown whitelist")
     addrs = _resolve_all_addrs(host)
@@ -267,9 +276,10 @@ def _verify_url_all(url: str) -> tuple[str, list[str]]:
     return host, addrs
 
 
-def _read_capped(response: httpx.Response, max_bytes: int | None = None) -> bytes:
+def _read_capped(response: httpx.Response, deadline: float, max_bytes: int | None = None) -> bytes:
     """Read a streamed response body, aborting once the size cap is exceeded so
-    a malicious server cannot exhaust memory before the check."""
+    a malicious server cannot exhaust memory before the check, or at
+    ``deadline`` (a server dripping bytes resets httpx's per-read timeout forever)."""
     cap = max_bytes if max_bytes is not None else settings.fetch_max_response_bytes
     chunks: list[bytes] = []
     total = 0
@@ -277,6 +287,8 @@ def _read_capped(response: httpx.Response, max_bytes: int | None = None) -> byte
         total += len(chunk)
         if total > cap:
             raise SecurityError(f"response exceeds {cap // (1024 * 1024)} MB cap")
+        if time.monotonic() > deadline:
+            raise SecurityError("the server is too slow; giving up")
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -294,14 +306,16 @@ def fetch_url(
 
     ``headers`` are sent with every hop (``Accept``, ``Authorization``); the
     ``Host`` header is always derived from the URL. An ``Authorization`` header
-    is only ever sent over https and is dropped when a redirect changes the host.
+    is only ever sent over https and is dropped when a redirect changes the
+    origin (scheme, host or port) — https→http on the same host included.
     """
     remaining_redirects = settings.fetch_max_redirects
     current = normalize_url(url)
+    deadline = time.monotonic() + settings.fetch_deadline_seconds
     extra = dict(headers or {})
     if "Authorization" in extra and httpx.URL(current).scheme != "https":
         raise SecurityError("credentials are only sent over https; use an https:// URL")
-    first_host = httpx.URL(current).host
+    first_origin = url_origin(current)
     with httpx.Client(
         follow_redirects=False,
         timeout=timeout if timeout is not None else settings.fetch_timeout_seconds,
@@ -311,7 +325,7 @@ def fetch_url(
             host, pinned_ips = _verify_url_all(current)
             parsed = httpx.URL(current)
             hop_headers = dict(extra)
-            if host != first_host:
+            if url_origin(current) != first_origin:
                 hop_headers.pop("Authorization", None)
             hop_headers["Host"] = parsed.netloc.decode("ascii")
             # Connect to the pre-validated IPs (next one on a connect failure,
@@ -347,7 +361,7 @@ def fetch_url(
                         response.status_code,
                         www_authenticate=response.headers.get("www-authenticate"),
                     )
-                content = _read_capped(response, max_bytes)
+                content = _read_capped(response, deadline, max_bytes)
                 content_type = response.headers.get("content-type")
                 response_headers = {k.lower(): v for k, v in response.headers.items()}
             finally:

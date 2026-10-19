@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { ApiError, listSamples } from "../api/client";
+import { splitCredentials, urlOrigin } from "../lib/serviceUrl";
 import type { Auth, Sample } from "../types/model";
 
 export type UploadMode = "url" | "text" | "file" | "samples";
@@ -12,6 +13,8 @@ interface UploaderProps {
   initialUrl?: string;
   /** Credentials remembered for the current service (memory only). */
   auth: Auth | null;
+  /** Service root the remembered credentials belong to. */
+  serviceRoot?: string | null;
   onUrl: (url: string, auth: Auth | null) => Promise<void>;
   onText: (content: string) => Promise<void>;
   onFile: (file: File) => Promise<void>;
@@ -35,6 +38,7 @@ export function Uploader({
   defaultMode = "url",
   initialUrl = "",
   auth,
+  serviceRoot = null,
   onUrl,
   onText,
   onFile,
@@ -46,6 +50,8 @@ export function Uploader({
   const [withAuth, setWithAuth] = useState(Boolean(auth));
   const [username, setUsername] = useState(auth?.username ?? "");
   const [password, setPassword] = useState(auth?.password ?? "");
+  // Origin the password was typed for: a URL pointing elsewhere must not get it.
+  const [passwordOrigin, setPasswordOrigin] = useState(auth ? urlOrigin(serviceRoot ?? initialUrl) : null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,11 +82,32 @@ export function Uploader({
     }
   }, []);
 
+  const changeUrl = (next: string) => {
+    setUrl(next);
+    if (password && passwordOrigin && urlOrigin(next) !== passwordOrigin) {
+      setPassword("");
+      setPasswordOrigin(null);
+      setError(`Password cleared: it was entered for ${passwordOrigin}.`);
+    }
+  };
+
   const submitUrl = () => {
-    const trimmed = url.trim();
+    let trimmed = url.trim();
     if (!trimmed) return;
-    const credentials = withAuth && username.trim() ? { username: username.trim(), password } : null;
-    void run("Loading $metadata…", () => onUrl(trimmed, credentials));
+    let credentials = withAuth && username.trim() ? { username: username.trim(), password } : null;
+    // user:password@ in the URL would end up in share links and the service root.
+    const embedded = splitCredentials(trimmed);
+    if (embedded) {
+      trimmed = embedded.url;
+      credentials = { username: embedded.username, password: embedded.password };
+      setUrl(trimmed);
+      setWithAuth(true);
+      setUsername(embedded.username);
+      setPassword(embedded.password);
+      setPasswordOrigin(urlOrigin(trimmed));
+    }
+    const target = trimmed;
+    void run("Loading $metadata…", () => onUrl(target, credentials));
   };
 
   const onDrop = (event: React.DragEvent) => {
@@ -135,7 +162,7 @@ export function Uploader({
               spellCheck={false}
               placeholder="https://services.odata.org/V4/Northwind/Northwind.svc/  (service root or …/$metadata)"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => changeUrl(e.target.value)}
               aria-label="OData service URL"
             />
             <button type="submit" className="btn btn-primary shrink-0" disabled={busy !== null || !url.trim()}>
@@ -166,7 +193,10 @@ export function Uploader({
                 autoComplete="current-password"
                 placeholder="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordOrigin(urlOrigin(url));
+                }}
                 aria-label="Password"
               />
               <p className="sm:col-span-2 text-[11px] text-slate-500 dark:text-slate-400">

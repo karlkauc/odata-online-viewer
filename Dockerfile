@@ -56,8 +56,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     r=urllib.request.urlopen('http://127.0.0.1:'+str(__import__('os').environ.get('PORT','8080'))+'/api/health',timeout=3); \
     sys.exit(0 if r.status==200 else 1)" || exit 1
 
-# --forwarded-allow-ips=* trusts X-Forwarded-* headers: required on Cloud Run,
-# where the client IP arrives via X-Forwarded-For from Google's front end and
-# the immediate peer has no stable IP. Spoofing only affects best-effort in-app
-# rate limiting / logs; real rate limiting is enforced by Cloud Armor.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips=*"]
+# No --proxy-headers: uvicorn would take the client-controlled left-most
+# X-Forwarded-For entry. app.rate_limit.client_ip reads the entry the proxy
+# appended instead (TRUSTED_PROXY_HOPS).
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
