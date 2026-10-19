@@ -4,7 +4,21 @@ from __future__ import annotations
 
 import re
 
-from app.odata.model import EntityType, ServiceModel, StructuredType
+from app.odata.model import Annotation, EntityType, ServiceModel, StructuredType
+
+_CAP = "Org.OData.Capabilities.V1."
+_UI = "com.sap.vocabularies.UI.v1."
+# (what is not allowed, V2 sap: attribute, V4 Capabilities term, record property)
+_RESTRICTIONS = (
+    ("create", "sap:creatable", "InsertRestrictions", "Insertable"),
+    ("update", "sap:updatable", "UpdateRestrictions", "Updatable"),
+    ("delete", "sap:deletable", "DeleteRestrictions", "Deletable"),
+    ("filter", None, "FilterRestrictions", "Filterable"),
+    ("sort", None, "SortRestrictions", "Sortable"),
+    ("search", "sap:searchable", "SearchRestrictions", "Searchable"),
+    ("paging", "sap:pageable", None, None),
+    ("count", "sap:countable", "CountRestrictions", "Countable"),
+)
 
 # Names, labels and descriptions come from an untrusted $metadata document and the
 # files get rendered by other tools: keep them from breaking out of a table cell or
@@ -54,6 +68,26 @@ def _property_rows(st: StructuredType) -> list[str]:
     return rows
 
 
+def _restrictions(annotations: list[Annotation]) -> str:
+    """Operations an entity set does not allow, from Capabilities (V4) or sap: attributes (V2)."""
+    denied = []
+    for operation, sap_term, cap_term, cap_property in _RESTRICTIONS:
+        sap = next((a.value for a in annotations if a.term == sap_term), None) if sap_term else None
+        record = next((a.structured for a in annotations if a.term == _CAP + str(cap_term)), None)
+        cap = record.get(cap_property) if isinstance(record, dict) else None
+        if "false" in (sap, cap):
+            denied.append(f"no {operation}")
+    return ", ".join(denied)
+
+
+def _line_item(annotations: list[Annotation]) -> list[str]:
+    """Columns of the unqualified UI.LineItem (what a Fiori list report shows)."""
+    items = next((a.structured for a in annotations if a.term == _UI + "LineItem" and not a.qualifier), None)
+    if not isinstance(items, list):
+        return []
+    return [item["Value"] for item in items if isinstance(item, dict) and isinstance(item.get("Value"), str)]
+
+
 def to_markdown(model: ServiceModel) -> str:
     out: list[str] = []
     title = model.service_root or model.filename or "OData service"
@@ -75,13 +109,17 @@ def to_markdown(model: ServiceModel) -> str:
                 out.append("")
                 out.append(f"### Entity container {_code(container.name)}")
                 out.append("")
-                out.append("| Entity set | Entity type | Label |")
-                out.append("|---|---|---|")
+                out.append("| Entity set | Entity type | Label | Restrictions |")
+                out.append("|---|---|---|---|")
                 for s in container.entity_sets:
-                    out.append(f"| {_code(s.name)} | {_code(s.entity_type)} | {_text(s.label or '')} |")
+                    out.append(
+                        f"| {_code(s.name)} | {_code(s.entity_type)} | {_text(s.label or '')} | "
+                        f"{_restrictions(s.annotations)} |"
+                    )
                 for s in container.singletons:
                     out.append(
-                        f"| {_code(s.name)} (singleton) | {_code(s.entity_type)} | {_text(s.label or '')} |"
+                        f"| {_code(s.name)} (singleton) | {_code(s.entity_type)} | {_text(s.label or '')} | "
+                        f"{_restrictions(s.annotations)} |"
                     )
             if container.operations:
                 out.append("")
@@ -107,6 +145,10 @@ def to_markdown(model: ServiceModel) -> str:
                 f"Key: {', '.join(_code(k) for k in et.key) or '—'}"
                 + (" (inherited)" if et.key_inherited else "")
             )
+            columns = _line_item(et.annotations)
+            if columns:
+                out.append("")
+                out.append(f"Fiori list columns (UI.LineItem): {', '.join(_code(c) for c in columns)}")
             out.append("")
             out.extend(_property_rows(et))
             if et.navigation_properties:

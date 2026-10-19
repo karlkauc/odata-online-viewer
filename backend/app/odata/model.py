@@ -13,7 +13,7 @@ diagram, deep links and the search.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,11 @@ class Annotation(BaseModel):
     term: str
     qualifier: str | None = None
     value: str | None = None
+    structured: Any = None
+    """Records and collections as JSON — dict (``$Type`` + property values), list,
+    or str for primitives and paths — so the UI can read UI.LineItem or
+    Capabilities restrictions. Same shape for EDMX and CSDL JSON; ``None`` for
+    plain values. Capped (``STRUCTURED_MAX_*`` in csdl_parser) for huge SAP services."""
 
 
 class Property(BaseModel):

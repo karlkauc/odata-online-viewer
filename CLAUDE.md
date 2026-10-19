@@ -19,7 +19,10 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
     version-neutral `model.py` (pydantic). Namespace-agnostic by local name. V2 associations
     become navigation properties with `multiplicity`/`source_multiplicity`, association sets
     become navigation bindings, `FunctionImport` becomes `Operation(kind="function_import")`,
-    `sap:`/`m:` attributes become annotations (`term="sap:label"`). Labels/descriptions are
+    `sap:`/`m:` attributes become annotations (`term="sap:label"`); records and collections are
+    kept as JSON in `Annotation.structured` (capped) for the Fiori view (`lib/fiori.ts`,
+    `FioriSection.tsx`: Capabilities/sap: matrix per set, UI.LineItem/HeaderInfo/SelectionFields
+    per type, property hints) and the Markdown export. Labels/descriptions are
     picked from `Common.Label`, `Core.Description`, `sap:label`, `sap:quickinfo`. Node ids are
     stable strings (`type:NS.T`, `prop:NS.T/P`, `set:NS.Container/S`, `op:NS.F#0`, …) shared
     with the frontend (`lib/modelIndex.ts`, deep links: `#/id/<id>?view=data&filter=…&select=…&orderby=…&top=…&skip=…`

@@ -211,6 +211,65 @@ def _annotation_value(el: etree._Element) -> str | None:
     return text or None
 
 
+# Bounds for Annotation.structured: SAP services carry UI annotations with
+# hundreds of records; the detail panel needs the shape, not every corner.
+STRUCTURED_MAX_DEPTH = 5
+STRUCTURED_MAX_NODES = 300
+_TRUNCATED = "…"
+
+
+class _Budget:
+    def __init__(self) -> None:
+        self.left = STRUCTURED_MAX_NODES
+
+    def take(self) -> bool:
+        self.left -= 1
+        return self.left >= 0
+
+
+def _xml_item(el: etree._Element, ctx: _Context, budget: _Budget, depth: int) -> Any:
+    if not budget.take() or depth > STRUCTURED_MAX_DEPTH:
+        return _TRUNCATED
+    name = _local(el)
+    if name == "Collection":
+        return [_xml_item(c, ctx, budget, depth + 1) for c in el if isinstance(c.tag, str)]
+    if name == "Record":
+        record: dict[str, Any] = {}
+        if el.get("Type"):
+            record["$Type"] = ctx.term(el.get("Type"))
+        for pv in _children(el, "PropertyValue"):
+            if pv.get("Property"):
+                record[pv.get("Property")] = _xml_structure(pv, ctx, budget, depth + 1)
+        return record
+    if name in _ANNOTATION_VALUE_ATTRS:
+        return (el.text or "").strip()
+    if name == "Null":
+        return None
+    return f"<{name}>"
+
+
+def _xml_structure(el: etree._Element, ctx: _Context, budget: _Budget, depth: int = 0) -> Any:
+    """Value of an ``Annotation`` or ``PropertyValue`` element as JSON."""
+    for attr in _ANNOTATION_VALUE_ATTRS:
+        value = el.get(attr)
+        if value is not None:
+            return value
+    for child in el:
+        if isinstance(child.tag, str) and _local(child) != "Annotation":
+            return _xml_item(child, ctx, budget, depth)
+    return (el.text or "").strip() or None
+
+
+def _xml_annotation(ann: etree._Element, ctx: _Context, qualifier: str | None = None) -> Annotation:
+    has_structure = any(isinstance(c.tag, str) and _local(c) in ("Collection", "Record") for c in ann)
+    return Annotation(
+        term=ctx.term(ann.get("Term")),
+        qualifier=ann.get("Qualifier") or qualifier,
+        value=_annotation_value(ann),
+        structured=_xml_structure(ann, ctx, _Budget()) if has_structure else None,
+    )
+
+
 def _inline_annotations(el: etree._Element, ctx: _Context) -> list[Annotation]:
     """V4 ``<Annotation>`` children plus any foreign-namespace attributes
     (``sap:label``, ``m:HasStream`` is handled separately)."""
@@ -219,9 +278,7 @@ def _inline_annotations(el: etree._Element, ctx: _Context) -> list[Annotation]:
         term = ann.get("Term")
         if not term:
             continue
-        result.append(
-            Annotation(term=ctx.term(term), qualifier=ann.get("Qualifier"), value=_annotation_value(ann))
-        )
+        result.append(_xml_annotation(ann, ctx))
     nsmap = {uri: prefix for prefix, uri in (el.nsmap or {}).items() if prefix}
     for key, value in el.attrib.items():
         if not key.startswith("{"):
@@ -705,13 +762,7 @@ def _apply_external_annotations(schema_el: etree._Element, ctx: _Context) -> int
             term = ann.get("Term")
             if not term:
                 continue
-            node.annotations.append(
-                Annotation(
-                    term=ctx.term(term),
-                    qualifier=ann.get("Qualifier") or qualifier,
-                    value=_annotation_value(ann),
-                )
-            )
+            node.annotations.append(_xml_annotation(ann, ctx, qualifier))
             applied += 1
         if hasattr(node, "label") and node.label is None:
             node.label = _label(node.annotations)
@@ -896,8 +947,43 @@ def _json_annotations(obj: dict[str, Any], ctx: _Context, prefix: str = "") -> l
         if not key.startswith(prefix + "@"):
             continue
         term, _, qualifier = key[len(prefix) + 1 :].partition("#")
-        result.append(Annotation(term=ctx.term(term), qualifier=qualifier or None, value=_json_value(value)))
+        structured = _json_structure(value, ctx, _Budget()) if isinstance(value, (dict, list)) else None
+        result.append(
+            Annotation(
+                term=ctx.term(term),
+                qualifier=qualifier or None,
+                value=_json_value(value),
+                structured=structured,
+            )
+        )
     return result
+
+
+_JSON_PATH_KEYS = ("$Path", "$PropertyPath", "$NavigationPropertyPath", "$AnnotationPath", "$EnumMember")
+
+
+def _json_structure(value: Any, ctx: _Context, budget: _Budget, depth: int = 0) -> Any:
+    """CSDL JSON annotation value in the same shape :func:`_xml_structure` produces."""
+    if not budget.take() or depth > STRUCTURED_MAX_DEPTH:
+        return _TRUNCATED
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return [_json_structure(v, ctx, budget, depth + 1) for v in value]
+    if isinstance(value, dict):
+        for key in _JSON_PATH_KEYS:
+            if key in value:
+                return str(value[key])
+        record: dict[str, Any] = {}
+        if isinstance(value.get("@type"), str):
+            record["$Type"] = ctx.term(value["@type"].lstrip("#"))
+        for key, item in value.items():
+            if not key.startswith("@") and not key.startswith("$"):
+                record[key] = _json_structure(item, ctx, budget, depth + 1)
+        return record
+    return str(value)
 
 
 def _json_value(value: Any) -> str | None:

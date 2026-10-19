@@ -4,10 +4,15 @@
 export type ODataVersion = "2.0" | "3.0" | "4.0" | "4.01";
 export type Multiplicity = "1" | "0..1" | "*";
 
+/** Annotation values as the backend keeps them: records, collections, paths and primitives as strings. */
+export type AnnotationJson = string | null | AnnotationJson[] | { [key: string]: AnnotationJson };
+
 export interface Annotation {
   term: string;
   qualifier: string | null;
   value: string | null;
+  /** Records and collections (UI.LineItem, Capabilities.*Restrictions …); null for plain values. */
+  structured?: AnnotationJson;
 }
 
 export interface Property {

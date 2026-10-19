@@ -27,6 +27,7 @@ import type {
 } from "../types/model";
 import { KindBadge } from "./KindBadge";
 import { ServiceOverview } from "./ServiceOverview";
+import { CapabilityMatrix, FioriUi, PropertyHints } from "./FioriSection";
 import { Icon, KeyIcon } from "./Icon";
 
 // --- small building blocks --------------------------------------------------
@@ -296,6 +297,7 @@ function StructuredDetails({ type, index, highlightId }: { type: StructuredType;
                     <td className={TD}>
                       {p.label}
                       {p.description && <span className="block text-slate-500 dark:text-slate-400">{p.description}</span>}
+                      <PropertyHints annotations={p.annotations} />
                     </td>
                   </tr>
                 ))}
@@ -404,6 +406,7 @@ function StructuredDetails({ type, index, highlightId }: { type: StructuredType;
         </div>
       )}
 
+      <FioriUi annotations={type.annotations} properties={members.properties} />
       <AnnotationList annotations={type.annotations} />
     </div>
   );
@@ -437,6 +440,7 @@ function PropertyCard({ prop, owner, index }: { prop: Property; owner: Structure
           </>
         )}
       </dl>
+      <PropertyHints annotations={prop.annotations} />
       <AnnotationList annotations={prop.annotations} />
     </div>
   );
@@ -495,6 +499,7 @@ function SetDetails({ set, index }: { set: EntitySet | Singleton; index: ModelIn
   const setSelected = useApp((s) => s.setSelected);
   const serviceRoot = useApp((s) => s.model?.service_root);
   const type = index.typesByName.get(set.entity_type);
+  const typeProperties = useMemo(() => (type && (type.kind === "entity" || type.kind === "complex") ? effectiveMembers(index, type).properties : []), [index, type]);
   return (
     <div className="space-y-4">
       <Header kind={set.kind} name={set.name} label={set.label} description={set.description} line={set.line} />
@@ -537,6 +542,8 @@ function SetDetails({ set, index }: { set: EntitySet | Singleton; index: ModelIn
           </table>
         </Section>
       )}
+      <CapabilityMatrix annotations={set.annotations} properties={typeProperties} />
+      {type && type.kind !== "enum" && type.kind !== "typedef" && <FioriUi annotations={type.annotations} properties={typeProperties} />}
       <AnnotationList annotations={set.annotations} />
     </div>
   );
