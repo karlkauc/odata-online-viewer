@@ -223,6 +223,21 @@ def test_single_targets_get_no_paging_options() -> None:
     assert url == "https://example.org/svc/Orders(1)/Customer"
 
 
+@pytest.mark.parametrize(
+    ("path", "paged"),
+    [
+        ("Orders", True),
+        ("Customers(7)/Orders", True),
+        ("Orders(1)/Tags", False),
+        ("Orders(1)/Lines", False),
+        ("Orders(1)/Customer/Orders", True),
+        ("Orders(1)/Customer", False),
+    ],
+)
+def test_collection_properties_are_not_paged(path: str, paged: bool) -> None:
+    assert resolve_path(parse_metadata(ORDERS).model, path).paged is paged
+
+
 def test_columns_follow_the_drill_target_type() -> None:
     m = parse_metadata(ORDERS).model
     rows = [{"Name": "A", "Id": 1}]

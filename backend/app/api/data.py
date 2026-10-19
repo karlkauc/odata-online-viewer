@@ -104,7 +104,7 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         url = (
             validate_next_link(model, payload.next_link)
             if payload.next_link
-            else build_query(model, payload.entity_set, payload.options, single=not target.collection)
+            else build_query(model, payload.entity_set, payload.options, single=not target.paged)
         )
         body, status, _ctype, _dur = fetch_json(
             url,
@@ -132,6 +132,8 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         notices.append(
             f"The service returned {len(rows)} rows although $top={payload.options.top} was requested."
         )
+    if count is None and not target.paged and not next_link:
+        count = len(rows)
     columns = column_order(rows, target.type, payload.options.select, payload.options.expand)
     emit(
         "data_query",

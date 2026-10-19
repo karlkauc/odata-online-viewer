@@ -366,6 +366,27 @@ def test_data_query_v4(client: TestClient, fetch: FakeFetch, recorder: ListRecor
     assert "dTpw" not in json.dumps([asdict(e) for e in recorder.events])
 
 
+def test_data_query_collection_property_is_not_paged(client: TestClient, fetch: FakeFetch) -> None:
+    root = "https://services.odata.org/TripPinRESTierService/"
+    fetch.responses[root + "$metadata"] = FetchedResource(
+        url=root + "$metadata", content=(SAMPLES / "trippin-v4.xml").read_bytes(), content_type="application/xml"
+    )
+    metadata_id = client.post("/api/metadata/url", json={"url": root}).json()["metadata_id"]
+    fetch.responses[root + "People('russellwhyte')/Features"] = FetchedResource(
+        url="…",
+        content=json.dumps({"value": ["Feature1", "Feature4"]}).encode(),
+        content_type="application/json;odata.metadata=minimal",
+    )
+    r = client.post(
+        "/api/data/query",
+        json={"metadata_id": metadata_id, "entity_set": "People('russellwhyte')/Features", "options": {}},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["count"] == 2 and len(r.json()["rows"]) == 2
+    # TripPin answers $count on a collection property with HTTP 500.
+    assert fetch.calls[-1][0] == root + "People('russellwhyte')/Features"
+
+
 def test_data_query_upstream_error(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:
     metadata_id = _loaded_v4(client, fetch)
     fetch.responses["https://services.odata.org/V4/Northwind/Northwind.svc/Products?"] = FetchHttpError(

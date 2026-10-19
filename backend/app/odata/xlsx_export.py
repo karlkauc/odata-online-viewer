@@ -67,7 +67,7 @@ def collect_rows(
     Stops on an empty or short page, when the inline count is reached, at
     ``max_rows`` or at the deadline (both mark the result ``truncated``)."""
     started = time.monotonic()
-    single = not resolve_path(model, entity_set).collection
+    single = not resolve_path(model, entity_set).paged
     page_options = options.model_copy(update={"top": MAX_TOP})
     url = build_query(model, entity_set, page_options, single=single)
     first_url = url

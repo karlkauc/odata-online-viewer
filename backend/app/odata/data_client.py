@@ -81,7 +81,8 @@ def build_query(
 ) -> str:
     """Absolute request URL for one page of an entity set.
 
-    ``single`` targets (``Orders(1)/Customer``) get no paging or count options:
+    ``single`` targets (``Orders(1)/Customer``, but also property values like
+    ``Orders(1)/Tags``, see ``PathTarget.paged``) get no paging or count options:
     strict services reject ``$top`` on a single entity or complex value."""
     if not model.service_root:
         raise DataError(
@@ -125,6 +126,14 @@ class PathTarget:
 
     type: EntityType | ComplexType | None
     collection: bool
+    property_value: bool = False
+
+    @property
+    def paged(self) -> bool:
+        """Whether to send $top/$skip/$count. A collection property arrives whole
+        with its entity anyway, and services fail on paging it (TripPin answers
+        ``People('x')/Features?$count=true`` with HTTP 500)."""
+        return self.collection and not self.property_value
 
 
 def path_segments(path: str) -> list[str]:
@@ -157,7 +166,7 @@ def resolve_path(model: ServiceModel, path: str) -> PathTarget:
     head = segments[0]
     name = head.split("(")[0]
     current: EntityType | ComplexType | None = None
-    collection = True
+    collection, property_value = True, False
     for schema in model.schemas:
         for container in schema.containers:
             for s in container.entity_sets:
@@ -168,7 +177,7 @@ def resolve_path(model: ServiceModel, path: str) -> PathTarget:
                     current, collection = types.get(single.entity_type), False
     for segment in segments[1:]:
         if current is None:
-            return PathTarget(None, collection)
+            return PathTarget(None, collection, property_value)
         name, keyed = segment.split("(")[0], "(" in segment
         chain, seen = [current], {current.qualified_name}
         while chain[-1].base_type and chain[-1].base_type not in seen and chain[-1].base_type in types:
@@ -178,14 +187,15 @@ def resolve_path(model: ServiceModel, path: str) -> PathTarget:
         nav = next((n for t in chain for n in t.navigation_properties if n.name == name), None)
         if prop is not None:
             inner, collection = split_collection(prop.type)
-            current = types.get(inner)
+            current, property_value = types.get(inner), True
         elif nav is not None:
             current, collection = types.get(nav.target_type), nav.is_collection
+            property_value = False
         else:
             return PathTarget(None, True)
         if keyed:
             collection = False
-    return PathTarget(current, collection)
+    return PathTarget(current, collection, property_value)
 
 
 def check_resource_path(path: str) -> None:
