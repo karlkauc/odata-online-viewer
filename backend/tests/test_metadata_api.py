@@ -403,6 +403,17 @@ def test_data_query_collection_property_is_not_paged(client: TestClient, fetch: 
     assert r.json()["count"] == 2 and len(r.json()["rows"]) == 2
     # TripPin answers $count on a collection property with HTTP 500.
     assert fetch.calls[-1][0] == root + "People('russellwhyte')/Features"
+    # Whole collection: no further pages, no "$top ignored" notice although 2 > top.
+    assert r.json()["paged"] is False and r.json()["notices"] == []
+    r = client.post(
+        "/api/data/query",
+        json={
+            "metadata_id": metadata_id,
+            "entity_set": "People('russellwhyte')/Features",
+            "options": {"top": 1, "count": False},
+        },
+    )
+    assert r.json()["count"] is None and r.json()["notices"] == []
 
 
 def test_data_query_upstream_error(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:

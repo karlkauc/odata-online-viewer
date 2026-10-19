@@ -177,7 +177,8 @@ def resolve_path(model: ServiceModel, path: str) -> PathTarget:
                     current, collection = types.get(single.entity_type), False
     for segment in segments[1:]:
         if current is None:
-            return PathTarget(None, collection, property_value)
+            # Past a primitive or unknown member (Orders(1)/Tags/$count): nothing is known.
+            return PathTarget(None, True)
         name, keyed = segment.split("(")[0], "(" in segment
         chain, seen = [current], {current.qualified_name}
         while chain[-1].base_type and chain[-1].base_type not in seen and chain[-1].base_type in types:

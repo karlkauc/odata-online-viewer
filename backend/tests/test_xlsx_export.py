@@ -198,6 +198,13 @@ def test_single_targets_make_one_request() -> None:
     assert "$top" not in fetch.urls[0]
 
 
+def test_a_whole_collection_property_is_cut_at_max_rows() -> None:
+    fetch = Pages(lambda url: {"value": [{"ProductID": i} for i in range(30)]})
+    result = collect(model("northwind-v4.xml", V4_ROOT), fetch, entity_set="Products(1)", max_rows=10)
+    assert len(result.rows) == 10 and result.truncated
+    assert "10 rows" in result.notices[0]
+
+
 def test_property_types_follow_the_path() -> None:
     types = property_types(model("northwind-v4.xml", V4_ROOT), "Customers('A')/Orders")
     assert types["OrderDate"] == "Edm.DateTimeOffset" and types["Freight"] == "Edm.Decimal"

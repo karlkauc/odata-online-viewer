@@ -75,6 +75,9 @@ class QueryResponse(BaseModel):
     next_link: str | None
     duration_ms: int
     notices: list[str] = Field(default_factory=list)
+    paged: bool = True
+    """False for single values and collection properties: sent without $top/$skip,
+    so the client must not offer further pages or offset the row numbers."""
 
 
 class RawResponse(BaseModel):
@@ -129,11 +132,13 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         )
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     notices: list[str] = []
-    if len(rows) > payload.options.top:
+    paged = target.paged or bool(payload.next_link)
+    if paged and len(rows) > payload.options.top:
         notices.append(
             f"The service returned {len(rows)} rows although $top={payload.options.top} was requested."
         )
-    if count is None and not target.paged and not next_link:
+    if count is None and not paged and payload.options.count and not next_link:
+        # No $count was sent, but the answer is the whole collection.
         count = len(rows)
     columns = column_order(rows, target.type, payload.options.select, payload.options.expand)
     emit(
@@ -156,6 +161,7 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         next_link=next_link,
         duration_ms=_ms(started),
         notices=notices,
+        paged=paged,
     )
 
 

@@ -300,6 +300,8 @@ export interface QueryResponse {
   next_link: string | null;
   duration_ms: number;
   notices: string[];
+  /** False for single values and collection properties: no further pages, no $skip offset. */
+  paged?: boolean;
 }
 
 export interface RawResponse {

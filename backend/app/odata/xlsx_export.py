@@ -104,6 +104,12 @@ def collect_rows(
             count = page_count
         if single or not page:
             rows.extend(page)
+            if len(rows) > max_rows:
+                # A collection property arrives whole, in one answer.
+                notices.append(
+                    f"The export stopped at {max_rows:,} rows; narrow the $filter to get the rest."
+                )
+                return CollectedRows(first_url, rows[:max_rows], count, pages, True, notices)
             break
         if first_of_previous is not None and page[0] == first_of_previous:
             notices.append("The service ignored $skip and repeated a page; the export stops there.")

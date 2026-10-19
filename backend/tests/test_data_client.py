@@ -204,6 +204,8 @@ ORDERS = b"""<?xml version="1.0" encoding="UTF-8"?>
         ("Customers(7)/Orders(1)/Customer", "Customer", False),
         ("Me/Orders", "Order", True),
         ("Orders(1)/Unknown", None, True),
+        # Past a primitive collection nothing is known; not a "property value" either.
+        ("Orders(1)/Tags/$count", None, True),
     ],
 )
 def test_resolve_drill_down_paths(path: str, type_name: str | None, collection: bool) -> None:
@@ -232,6 +234,7 @@ def test_single_targets_get_no_paging_options() -> None:
         ("Orders(1)/Lines", False),
         ("Orders(1)/Customer/Orders", True),
         ("Orders(1)/Customer", False),
+        ("Orders(1)/Tags/$count", True),
     ],
 )
 def test_collection_properties_are_not_paged(path: str, paged: bool) -> None:

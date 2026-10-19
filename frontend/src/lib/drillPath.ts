@@ -185,5 +185,6 @@ export function localResult(value: Cell): QueryResponse {
     next_link: null,
     duration_ms: 0,
     notices: ["Shown from the parent row; the service was not queried."],
+    paged: false,
   };
 }

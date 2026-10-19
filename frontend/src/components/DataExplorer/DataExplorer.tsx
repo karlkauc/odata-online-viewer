@@ -267,8 +267,11 @@ export function DataExplorer() {
   }
 
   const result = data.result;
-  const pageFrom = data.options.skip + 1;
-  const pageTo = data.options.skip + (result?.rows.length ?? 0);
+  // An unpaged answer (Orders(1)/Tags) is complete and ignores $skip.
+  const unpaged = result?.paged === false;
+  const offset = unpaged ? 0 : data.options.skip;
+  const pageFrom = offset + 1;
+  const pageTo = offset + (result?.rows.length ?? 0);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -453,7 +456,7 @@ export function DataExplorer() {
             <button
               type="button"
               className="btn text-xs py-0.5"
-              disabled={data.loading || data.local || (!result.next_link && result.rows.length < data.options.top)}
+              disabled={data.loading || data.local || unpaged || (!result.next_link && result.rows.length < data.options.top)}
               onClick={nextPage}
             >
               Next ›
@@ -497,7 +500,7 @@ export function DataExplorer() {
             <tbody>
               {result.rows.map((row, i) => (
                 <tr key={i} className="odd:bg-slate-50/60 dark:odd:bg-slate-900/40 hover:bg-blue-50/60 dark:hover:bg-blue-950/30">
-                  <td className="text-right px-2 py-1 text-[10px] text-slate-400 tabular-nums align-top">{data.options.skip + i + 1}</td>
+                  <td className="text-right px-2 py-1 text-[10px] text-slate-400 tabular-nums align-top">{offset + i + 1}</td>
                   {result.columns.map((c) => (
                     <td key={c} className="px-2 py-1 whitespace-nowrap max-w-[28rem] overflow-hidden text-ellipsis align-top">
                       <CellView value={row[c] ?? null} onOpen={drillable(row[c]) ? () => openCell(row, c) : undefined} />

@@ -61,6 +61,8 @@ describe("drillPath", () => {
 
   it("builds a local table from an inline value", () => {
     expect(localResult(["a", "b"]).rows).toEqual([{ value: "a" }, { value: "b" }]);
+    // A whole inline value: the explorer must not offer further pages.
+    expect(localResult(["a"]).paged).toBe(false);
     const objects = localResult([{ A: 1 }, { B: 2 }]);
     expect(objects.columns).toEqual(["A", "B"]);
     expect(localResult({ City: "Graz" }).rows).toEqual([{ City: "Graz" }]);
