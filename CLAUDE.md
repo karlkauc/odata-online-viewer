@@ -64,7 +64,10 @@ hardening and usage-statistics stack. Shared pieces (Dockerfile, `deploy.sh`, `u
   `Uploader` (URL+Basic Auth / paste / file / samples), `Landing`, `ModelTree` (react-virtuoso
   rows from `treeRows.ts`), `DetailPanel` (per node kind), `DiagramView` (`buildGraph.ts` →
   `layout.ts` ELK layered, lazy-loaded; `EntityNode.tsx`; focus mode; cap 150 nodes),
-  `TextView` (CodeMirror, jump to `line`), `DataExplorer`, `SearchPalette`.
+  `TextView` (CodeMirror, jump to `line`), `DataExplorer` (Copy as … via `lib/copyAsCode.ts`,
+  credentials only as placeholders; Share query), `SearchPalette`. "Open in XML Viewer"
+  (`lib/xmlViewerHandoff.ts`) posts the EDMX to xml-viewer.online `?from=odata-viewer`; the shell
+  sends `Cross-Origin-Opener-Policy: same-origin-allow-popups` so the popup keeps its opener.
   Icons: `components/Icon.tsx` (inline Lucide paths, `currentColor`, `KeyIcon` for keys) —
   no emoji as icons, they ignore text colour and render differently per platform.
 - **Responsive tiers.** Phone `< md` (768): one pane at a time via the bottom `MobileNav`

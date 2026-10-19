@@ -123,6 +123,9 @@ SPA_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    # "Open in XML Viewer" posts the EDMX to a popup on xml-viewer.online; with
+    # the middleware's same-origin the popup would lose its opener.
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
 }
 
 

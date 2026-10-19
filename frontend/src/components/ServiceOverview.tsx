@@ -1,4 +1,5 @@
-import { downloadExport, pingShare } from "../api/client";
+import { downloadExport, fetchMetadataSource, pingShare } from "../api/client";
+import { handoffSupported, openInXmlViewer } from "../lib/xmlViewerHandoff";
 import { shareLink } from "../lib/deepLink";
 import { useCopy } from "../lib/useCopy";
 import { useApp } from "../stores/appStore";
@@ -79,6 +80,21 @@ export function ServiceOverview() {
         <button type="button" className="btn" onClick={() => void downloadExport(model.metadata_id, "mermaid")}>
           <Icon name="download" /> Mermaid ER
         </button>
+        {model.format === "xml" && handoffSupported() && (
+          <button
+            type="button"
+            className="btn"
+            title="Open the EDMX document in the XML Viewer: tree, search, validation against a schema"
+            onClick={() =>
+              void fetchMetadataSource(model.metadata_id).then((xml) => {
+                const name = (model.filename || "metadata").replace(/\.(xml|edmx)$/i, "") + ".xml";
+                return openInXmlViewer(new File([xml], name, { type: "application/xml" }));
+              })
+            }
+          >
+            <Icon name="source" /> Open in XML Viewer ↗
+          </button>
+        )}
         {share && (
           <button
             type="button"
