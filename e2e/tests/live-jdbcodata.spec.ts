@@ -218,6 +218,41 @@ test("wrong password is explained, anonymous access uses the demo user", async (
   expect(await shownCount(page)).toBe(await directCount(request, "Produkte"));
 });
 
+test("basic auth: the same queries return each user's own rows (betreuer_anna, betreuer_bernd)", async ({ page, request }) => {
+  test.skip(!ANNA_PASSWORD || !BERND_PASSWORD, "JDBCODATA_ANNA_PASSWORD / JDBCODATA_BERND_PASSWORD not set");
+  const seen: Record<string, { ids: number[]; orders: number }> = {};
+  for (const [user, password] of [
+    ["betreuer_anna", ANNA_PASSWORD],
+    ["betreuer_bernd", BERND_PASSWORD],
+  ]) {
+    // login in the URL form: JdbcOdata hands the Basic credentials on to its database
+    await loadService(page, SERVICE, user, password);
+    await openData(page, "MeineKunden");
+    await form(page).getByRole("checkbox", { name: "$count" }).check();
+    await run(page);
+    const rows = (await resultRows(page)) as { KundeId: number; Betreuer: string; AngemeldetAls: string }[];
+    const expected = await (await direct(request, "MeineKunden?$select=KundeId", user, password)).json();
+    expect(rows.map((r) => r.KundeId)).toEqual(expected.value.map((r: { KundeId: number }) => r.KundeId));
+    expect(await shownCount(page)).toBe(rows.length);
+    expect(new Set(rows.map((r) => r.AngemeldetAls))).toEqual(new Set([user]));
+    expect(new Set(rows.map((r) => r.Betreuer))).toEqual(new Set([user]));
+
+    // the existing queries are filtered by the database as well
+    await openData(page, "Bestellungen");
+    await form(page).getByRole("checkbox", { name: "$count" }).check();
+    await run(page);
+    const orders = await shownCount(page);
+    expect(orders).toBe(await directCount(request, "Bestellungen", undefined, user, password));
+    seen[user] = { ids: rows.map((r) => r.KundeId), orders };
+  }
+  const { betreuer_anna: anna, betreuer_bernd: bernd } = seen;
+  expect(anna.ids.length).toBeGreaterThan(0);
+  expect(bernd.ids.length).toBeGreaterThan(0);
+  expect(anna.ids.filter((id) => bernd.ids.includes(id))).toEqual([]);
+  expect(anna.orders).not.toBe(bernd.orders);
+  expect(anna.orders).toBeLessThan(await directCount(request, "Bestellungen"));
+});
+
 test("Run sends the credentials typed in the explorer, without pressing Use credentials", async ({ page }) => {
   test.skip(!ANNA_PASSWORD || !BERND_PASSWORD, "JDBCODATA_ANNA_PASSWORD / JDBCODATA_BERND_PASSWORD not set");
   // anonymous load: the demo answers as its service user, so a missing login would not fail, only show other rows
