@@ -56,10 +56,18 @@ def test_every_bundled_page_parses_and_renders() -> None:
 def test_pages_carry_the_preview_image_and_no_doubled_site_name() -> None:
     for page in all_pages().values():
         doc = render_page(page, "https://example.test")
-        assert '<meta property="og:image" content="https://example.test/og-image.png" />' in doc
+        image = page.og_image or "/og-image.png"
+        assert f'<meta property="og:image" content="https://example.test{image}" />' in doc
         assert '<meta name="twitter:card" content="summary_large_image" />' in doc
         title = re.search(r"<title>(.*?)</title>", doc).group(1)
         assert title.count(html.escape(site.SITE_NAME)) == 1, page.slug
+
+
+def test_own_preview_image_from_front_matter() -> None:
+    page = parse_page("x", '+++\ntitle = "T"\ndescription = "D"\nog_image = "/og/x.png"\n+++\nBody\n')
+    doc = render_page(page, "https://example.test")
+    assert '<meta property="og:image" content="https://example.test/og/x.png" />' in doc
+    assert '<meta property="og:image:alt" content="T" />' in doc
 
 
 def test_front_matter_is_required() -> None:
