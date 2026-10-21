@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pingFeature } from "../api/client";
 import { EVENT_OPEN_SEARCH } from "../lib/links";
 import type { IndexEntry } from "../lib/modelIndex";
 import { useApp } from "../stores/appStore";
@@ -34,6 +35,7 @@ export function SearchPalette() {
   useEffect(() => {
     const handler = () => {
       setOpen(true);
+      pingFeature("search_open", { once: true });
       setQuery("");
       setCursor(0);
     };

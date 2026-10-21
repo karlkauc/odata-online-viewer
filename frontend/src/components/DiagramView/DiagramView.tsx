@@ -19,6 +19,7 @@ import { buildGraph, type Graph, type GraphEdge } from "./buildGraph";
 import { EntityNode, type EntityNodeData } from "./EntityNode";
 import { RelationEdge } from "./RelationEdge";
 import { exportFlowAsPng, exportFlowAsSvg } from "./exportImage";
+import { pingFeature } from "../../api/client";
 import { FULL_FIT } from "./fitOptions";
 import { layoutGraph, type Positioned } from "./layout";
 import { Icon } from "../Icon";
@@ -224,6 +225,7 @@ function DiagramInner() {
       try {
         if (format === "png") await exportFlowAsPng(viewport, getNodes(), { filename: `${name}-er-diagram.png` });
         else await exportFlowAsSvg(viewport, getNodes(), { filename: `${name}-er-diagram.svg` });
+        pingFeature(format === "svg" ? "diagram_svg" : "diagram_png");
       } catch (err) {
         window.alert(err instanceof Error ? err.message : String(err));
       }

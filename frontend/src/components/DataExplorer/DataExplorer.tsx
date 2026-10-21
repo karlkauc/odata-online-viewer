@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { ApiError, exportEntitySet, pingShare, queryEntitySet } from "../../api/client";
+import { ApiError, exportEntitySet, pingFeature, pingShare, queryEntitySet } from "../../api/client";
 import { SNIPPET_LABELS, snippet, type SnippetLanguage } from "../../lib/copyAsCode";
 import { linkQuery, shareLink } from "../../lib/deepLink";
 import { drillPath, localResult, resolvePath, rowLinks } from "../../lib/drillPath";
@@ -103,6 +103,7 @@ function CopyAsMenu({ url, basicAuth, v4 }: { url: string; basicAuth: boolean; v
   const pick = (language: SnippetLanguage) => {
     setOpen(false);
     void copy(snippet(language, { url, basicAuth, v4 }));
+    pingFeature("copy_as_code");
   };
   return (
     <div ref={ref} className="relative shrink-0">

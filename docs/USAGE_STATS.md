@@ -21,7 +21,7 @@ One row per event in table `usage_event` (DDL: `backend/sql/usage_stats.sql`):
 
 | Column | Meaning |
 |---|---|
-| `event_type` | `page_view` (SPA shell or content page served), `metadata_load`, `data_query`, `export`, `share` (a share link was copied: `source` = `service` or `query`; the copy itself happens in the browser, the button pings `POST /api/usage/share`) |
+| `event_type` | `page_view` (SPA shell or content page served), `metadata_load`, `data_query`, `export`, `share` (a share link was copied: `source` = `service` or `query`; the copy itself happens in the browser, the button pings `POST /api/usage/share`), `feature` (a browser-only feature was used, pinged via `POST /api/usage/feature?name=`: `source` = `copy_as_code`, `diagram_png`, `diagram_svg`, `search_open`; `search_open` at most once per page load; unknown names get a 400 and no row) |
 | `visitor_hash` | `sha256(daily_salt ‖ ip ‖ user-agent)[:32]`; salt = `HMAC(USAGE_HASH_SECRET, date)` ⇒ same visitor within a day, unlinkable across days, not reversible |
 | `country_code` | ISO-3166-1 alpha-2 derived server-side via MaxMind GeoLite2; NULL if unknown |
 | `user_agent`, `device` | UA string (≤255) and a cheap classification `desktop`/`mobile`/`bot`/`unknown` |
@@ -168,6 +168,9 @@ WHERE event_type='page_view' AND utm_source IS NOT NULL GROUP BY 1,2 ORDER BY 3 
 -- Clicks to the sister tools and FreeXmlToolkit, copied share links
 SELECT path, count(*) FROM usage_event WHERE event_type='page_view' AND path LIKE '/go/%' GROUP BY 1 ORDER BY 2 DESC;
 SELECT received_at::date d, source, count(*) FROM usage_event WHERE event_type='share' GROUP BY 1,2 ORDER BY 1 DESC;
+
+-- Browser-only features (diagram export, search palette, …)
+SELECT source, count(*), count(DISTINCT visitor_hash) FROM usage_event WHERE event_type='feature' AND device<>'bot' GROUP BY 1 ORDER BY 2 DESC;
 
 -- Content pages that bring visitors
 SELECT path, count(*) FROM usage_event WHERE event_type='page_view' AND device<>'bot'
