@@ -192,6 +192,8 @@ export function DataExplorer() {
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<{ text: string; error: boolean } | null>(null);
   const [credentials, setCredentials] = useState<Auth>({ username: auth?.username ?? "", password: auth?.password ?? "" });
+  // The fields show the credentials in effect (a sample or URL load may replace or drop them).
+  useEffect(() => setCredentials({ username: auth?.username ?? "", password: auth?.password ?? "" }), [auth]);
 
   useEffect(() => setDraft(data.options), [data.options, data.entitySet]);
   useEffect(() => setExportNote(null), [data.result]);
@@ -217,7 +219,8 @@ export function DataExplorer() {
       if (!model || !entitySet) return;
       setData({ loading: true, error: null, options, pageStack });
       try {
-        const result = await queryEntitySet(model.metadata_id, entitySet, options, auth, nextLink);
+        // Read at call time: Run may have just applied typed credentials (setAuth is synchronous).
+        const result = await queryEntitySet(model.metadata_id, entitySet, options, useApp.getState().auth, nextLink);
         setData({ result, loading: false, error: null });
         setNeedAuth(false);
       } catch (err) {
@@ -226,7 +229,7 @@ export function DataExplorer() {
         if (/HTTP 401|requires authentication|user name or password/i.test(message)) setNeedAuth(true);
       }
     },
-    [model, data.entitySet, data.pageStack, auth, setData],
+    [model, data.entitySet, data.pageStack, setData],
   );
 
   // Opened from a shared query link: run it once.
@@ -236,9 +239,16 @@ export function DataExplorer() {
     void run(data.options, null, []);
   }, [data.pendingRun, data.options, model, run, setData]);
 
+  /** Make the typed credentials the ones in effect, so Run never goes out with stale or no credentials. */
+  const applyCredentials = () => {
+    const typed = credentials.username ? credentials : null;
+    if (typed?.username !== auth?.username || typed?.password !== auth?.password) setAuth(typed);
+  };
+
   const submit = (event?: React.FormEvent) => {
     event?.preventDefault();
     if (data.local) return;
+    applyCredentials();
     void run({ ...draft, skip: 0 }, null, []);
   };
 
@@ -315,7 +325,7 @@ export function DataExplorer() {
     setExportNote(null);
     try {
       const table = scope === "page" ? { columns: data.result.columns, rows: data.result.rows } : undefined;
-      const done = await exportEntitySet(model.metadata_id, data.entitySet, data.options, auth, table);
+      const done = await exportEntitySet(model.metadata_id, data.entitySet, data.options, useApp.getState().auth, table);
       if (done.truncated) setExportNote({ text: `The export stopped at ${done.rows.toLocaleString()} rows — narrow the $filter to get the rest (see the "Query" sheet).`, error: false });
     } catch (err) {
       setExportNote({ text: `Excel export failed: ${err instanceof ApiError ? err.message : String(err)}`, error: true });
@@ -477,7 +487,7 @@ export function DataExplorer() {
               <input className={clsx(INPUT, "mt-0.5")} type="password" autoComplete="current-password" value={credentials.password} onChange={(e) => setCredentials({ ...credentials, password: e.target.value })} />
             </label>
             <div className="flex gap-1.5">
-              <button type="button" className="btn" onClick={() => setAuth(credentials.username ? credentials : null)}>
+              <button type="button" className="btn" onClick={applyCredentials}>
                 {auth ? "Update" : "Use"} credentials
               </button>
               {auth && (
@@ -488,6 +498,7 @@ export function DataExplorer() {
             </div>
             <p className="md:col-span-3 text-[11px] text-slate-500">
               {auth ? `Requests are sent as ${auth.username}. ` : "Requests are sent anonymously. "}
+              Run applies the credentials typed here.{" "}
               Credentials stay in this tab's memory and travel to the service through this site's backend over HTTPS only.
             </p>
           </div>

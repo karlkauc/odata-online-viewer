@@ -3,13 +3,16 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 // End-to-end against the live JdbcOdata demo (https://odata.status20.net) through the viewer.
 // Runs only with credentials, e.g.:
 //   E2E_EXTERNAL=1 E2E_BASE_URL=https://odata-viewer.status20.net \
-//   JDBCODATA_USER=excel_demo JDBCODATA_PASSWORD=… JDBCODATA_NORD_PASSWORD=… npx playwright test live-jdbcodata
+//   JDBCODATA_USER=excel_demo JDBCODATA_PASSWORD=… JDBCODATA_NORD_PASSWORD=… \
+//   JDBCODATA_ANNA_PASSWORD=… JDBCODATA_BERND_PASSWORD=… npx playwright test live-jdbcodata
 // Every check compares what the viewer shows with a direct request to the service.
 
 const SERVICE = process.env.JDBCODATA_URL ?? "https://odata.status20.net/odata/";
 const USER = process.env.JDBCODATA_USER ?? "excel_demo";
 const PASSWORD = process.env.JDBCODATA_PASSWORD ?? "";
 const NORD_PASSWORD = process.env.JDBCODATA_NORD_PASSWORD ?? "";
+const ANNA_PASSWORD = process.env.JDBCODATA_ANNA_PASSWORD ?? "";
+const BERND_PASSWORD = process.env.JDBCODATA_BERND_PASSWORD ?? "";
 
 test.skip(!PASSWORD, "JDBCODATA_PASSWORD not set");
 test.describe.configure({ mode: "serial" });
@@ -213,6 +216,26 @@ test("wrong password is explained, anonymous access uses the demo user", async (
   await form(page).getByRole("checkbox", { name: "$count" }).check();
   await run(page);
   expect(await shownCount(page)).toBe(await directCount(request, "Produkte"));
+});
+
+test("Run sends the credentials typed in the explorer, without pressing Use credentials", async ({ page }) => {
+  test.skip(!ANNA_PASSWORD || !BERND_PASSWORD, "JDBCODATA_ANNA_PASSWORD / JDBCODATA_BERND_PASSWORD not set");
+  // anonymous load: the demo answers as its service user, so a missing login would not fail, only show other rows
+  await loadService(page, SERVICE, null);
+  await openData(page, "MeineKunden");
+  await moreOptions(page);
+  for (const [user, password] of [
+    ["betreuer_anna", ANNA_PASSWORD],
+    ["betreuer_bernd", BERND_PASSWORD],
+  ]) {
+    await form(page).getByRole("textbox", { name: /^User name/ }).fill(user);
+    await form(page).getByLabel("Password").fill(password);
+    await run(page);
+    await expect(form(page).getByText(`Requests are sent as ${user}.`)).toBeVisible();
+    const rows = await resultRows(page);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(new Set(rows.map((r) => r.AngemeldetAls))).toEqual(new Set([user]));
+  }
 });
 
 test("drilling into a collection cell queries that row's values; Back restores the page", async ({ page, request }) => {
