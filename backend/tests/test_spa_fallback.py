@@ -82,3 +82,39 @@ def test_shell_gets_per_route_meta():
     assert f"<title>{meta.title}</title>" in rendered
     assert 'href="https://www.odata-viewer.online/samples"' in rendered
     assert 'property="og:url" content="https://www.odata-viewer.online/samples"' in rendered
+
+
+class TestHead:
+    """HEAD is answered like GET without a body (HeadAsGetMiddleware)."""
+
+    @pytest.fixture
+    def head_client(self, tmp_path: Path) -> TestClient:
+        from app.main import HeadAsGetMiddleware
+
+        (tmp_path / "assets").mkdir()
+        (tmp_path / "index.html").write_text("<html>spa</html>")
+        (tmp_path / "og-image.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        app = FastAPI()
+        app.add_middleware(HeadAsGetMiddleware)
+
+        @app.get("/api/thing")
+        async def thing() -> dict[str, str]:
+            return {"a": "b"}
+
+        mount_spa(app, tmp_path)
+        return TestClient(app)
+
+    @pytest.mark.parametrize("path", ["/", "/og-image.png", "/sitemap.xml", "/guides"])
+    def test_head_matches_get_without_body(self, head_client: TestClient, path: str) -> None:
+        get = head_client.get(path)
+        head = head_client.head(path)
+        assert head.status_code == get.status_code == 200
+        assert head.content == b""
+        assert head.headers["content-type"] == get.headers["content-type"]
+        assert head.headers["content-length"] == get.headers["content-length"]
+
+    def test_unknown_path_stays_404(self, head_client: TestClient) -> None:
+        assert head_client.head("/wp-login.php").status_code == 404
+
+    def test_api_is_left_alone(self, head_client: TestClient) -> None:
+        assert head_client.head("/api/thing").status_code == 405
