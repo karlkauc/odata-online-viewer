@@ -6,6 +6,11 @@ SITE_NAME = "Online OData Viewer"
 # Where the "Open the viewer" button in the page header points.
 VIEWER_PATH = "/"
 LOGO_PATH = "/favicon.svg"
+# Preview image for shared links, 1200×630 (frontend/public); index.html names the same.
+OG_IMAGE_PATH = "/og-image.png"
+OG_IMAGE_ALT = (
+    "Online OData Viewer — tree, entity-relationship diagram and data explorer for an OData service"
+)
 # This site's key in FAMILY; its own entry is shown without a link.
 SELF = "odata"
 
