@@ -97,12 +97,39 @@ def _host(model: ServiceModel) -> str | None:
     return schema_display_name("url", model.service_root)
 
 
+_DEFAULT_OPTIONS = QueryOptions()
+
+
+def query_option_names(options: QueryOptions) -> str:
+    """Which query options a request used, as sorted comma-joined names (``expand,filter``).
+
+    Only the names, never the values. Defaults do not count: ``top`` only when it is
+    not 50, and since ``$count`` is on by default, switching it off is ``nocount``.
+    Empty string = a plain request without options."""
+    used = {
+        name
+        for name in ("filter", "orderby", "expand", "search", "extra")
+        if (getattr(options, name) or "").strip()
+    }
+    if any(s.strip() for s in options.select):
+        used.add("select")
+    if options.skip:
+        used.add("skip")
+    if options.top != _DEFAULT_OPTIONS.top:
+        used.add("top")
+    if options.count != _DEFAULT_OPTIONS.count:
+        used.add("nocount")
+    return ",".join(sorted(used))
+
+
 @router.post("/data/query", response_model=QueryResponse)
 @limiter.limit(DATA_LIMIT)
 async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResponse:
     model = get_stored(payload.metadata_id).model
     started = time.perf_counter()
     target = resolve_path(model, payload.entity_set)
+    # A next link carries the options of the first page; count them there only.
+    options_used = None if payload.next_link else query_option_names(payload.options)
     try:
         url = (
             validate_next_link(model, payload.next_link)
@@ -129,6 +156,8 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
             status_code=exc.upstream_status or exc.status_code,
             error_detail=str(exc),
             odata_version=model.odata_version,
+            query_options=options_used,
+            auth_used=payload.auth is not None,
         )
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     notices: list[str] = []
@@ -151,6 +180,8 @@ async def query_entity_set(request: Request, payload: QueryPayload) -> QueryResp
         status="ok",
         status_code=status,
         odata_version=model.odata_version,
+        query_options=options_used,
+        auth_used=payload.auth is not None,
     )
     return QueryResponse(
         request_url=url,
@@ -211,6 +242,8 @@ async def export_entity_set(request: Request, payload: ExportPayload) -> Respons
                 status_code=exc.upstream_status or exc.status_code,
                 error_detail=str(exc),
                 odata_version=model.odata_version,
+                query_options=query_option_names(payload.options),
+                auth_used=payload.auth is not None,
             )
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         rows, count, request_url = collected.rows, collected.count, collected.request_url
@@ -249,6 +282,8 @@ async def export_entity_set(request: Request, payload: ExportPayload) -> Respons
         status="ok",
         status_code=200,
         odata_version=model.odata_version,
+        query_options=query_option_names(payload.options),
+        auth_used=payload.auth is not None,
     )
     return Response(
         content=body,
@@ -297,6 +332,7 @@ async def raw_request(request: Request, payload: RawPayload) -> RawResponse:
             status_code=exc.upstream_status or exc.status_code,
             error_detail=str(exc),
             odata_version=model.odata_version,
+            auth_used=payload.auth is not None,
         )
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     emit(
@@ -308,6 +344,7 @@ async def raw_request(request: Request, payload: RawPayload) -> RawResponse:
         status="ok",
         status_code=status,
         odata_version=model.odata_version,
+        auth_used=payload.auth is not None,
     )
     return RawResponse(
         request_url=url, status_code=status, content_type=ctype, body=body, duration_ms=_ms(started)

@@ -89,6 +89,7 @@ def _parse_and_store(
             status="parse_error",
             status_code=400,
             error_detail=detail,
+            auth_used=auth_used,
         )
         raise HTTPException(status_code=400, detail=detail) from exc
     model = parsed.model
@@ -112,6 +113,8 @@ def _parse_and_store(
         status="ok",
         status_code=200,
         odata_version=model.odata_version,
+        csdl_format=model.format,
+        auth_used=model.auth_used,
     )
     logger.info(
         "metadata parsed",
@@ -157,6 +160,7 @@ def load_from_url(url: str, auth: AuthPayload | None, *, source: str = "url") ->
                 401 if exc.status_code in (401, 403) else 400,
                 detail,
                 schema_name=schema_display_name("url", urls.metadata_url),
+                auth_used=auth is not None,
             ) from exc
         except SecurityError as exc:
             name = schema_display_name("url", urls.metadata_url)

@@ -57,6 +57,9 @@ class UsageEvent:
     utm_source: str | None = None
     utm_medium: str | None = None
     utm_campaign: str | None = None
+    query_options: str | None = None
+    auth_used: bool | None = None
+    csdl_format: str | None = None
 
     def as_row(self) -> tuple:
         return tuple(getattr(self, f.name) for f in fields(self))

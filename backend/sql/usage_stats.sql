@@ -1,5 +1,5 @@
 -- Usage statistics schema for the OData Online Viewer (docs/USAGE_STATS.md).
--- Column set is the XSD/XML viewers' usage_event plus odata_version, so one
+-- Column set is the XSD/XML viewers' usage_event plus odata_version and the O1 columns (query_options, auth_used, csdl_format), so one
 -- dashboard can query all three databases; only the event_type list and the
 -- meaning of a few columns differ (see the comments). Apply once by hand as the owning role; the
 -- app never issues DDL. From the VPS (scp this file there first):
@@ -35,7 +35,10 @@ CREATE TABLE IF NOT EXISTS usage_event (
   odata_version    text,                 -- 2.0 | 3.0 | 4.0 | 4.01 (metadata_load, data_query)
   utm_source       text,                 -- page_view: ?utm_source= slug (sister sites, posts), else NULL
   utm_medium       text,
-  utm_campaign     text
+  utm_campaign     text,
+  query_options    text,                 -- data_query (query) / xlsx_* export: sorted option names used, e.g. 'expand,filter,select'; '' = none; never values
+  auth_used        boolean,              -- metadata_load / data_query / xlsx_* export: Basic Auth credentials were sent (never the credentials)
+  csdl_format      text                  -- metadata_load ok: xml | json (CSDL flavour of the document)
 );
 
 ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS odata_version text;
@@ -43,6 +46,10 @@ ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS odata_version text;
 ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS utm_source text;
 ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS utm_medium text;
 ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS utm_campaign text;
+-- Query options, credentials flag, CSDL flavour (O1); also before the deploy that writes them.
+ALTER TABLE usage_event ADD COLUMN IF NOT EXISTS query_options text,
+  ADD COLUMN IF NOT EXISTS auth_used boolean,
+  ADD COLUMN IF NOT EXISTS csdl_format text;
 -- 'share' (copied share link) joined the event types later; widen the check in place.
 ALTER TABLE usage_event DROP CONSTRAINT IF EXISTS usage_event_event_type_check;
 ALTER TABLE usage_event ADD CONSTRAINT usage_event_event_type_check

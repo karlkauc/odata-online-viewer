@@ -11,7 +11,7 @@ set. Self-hosted installs without it record nothing.
 
 The implementation (`backend/app/usage/`) is a port of the XSD/XML viewers'
 module; the `usage_event` table has the **same columns** as theirs plus
-`odata_version`, so the usage dashboard (`~/webdav/usage_statistics`, app key
+`odata_version` (and since O1 `query_options`, `auth_used`, `csdl_format`), so the usage dashboard (`~/webdav/usage_statistics`, app key
 `odataviewer`) reads it with the shared viewer queries. Only the event types
 and the meaning of a few columns differ.
 
@@ -38,6 +38,9 @@ One row per event in table `usage_event` (DDL: `backend/sql/usage_stats.sql`):
 | `type_count` | `metadata_load`: complex + enum types |
 | `duration_ms`, `status`, `status_code`, `error_detail` | timing and outcome (`ok`/`parse_error`/`rejected`/`error`/`http_<status>`); `error_detail` is the exception message, ≤255 chars |
 | `diagnostic_count`, `error_count` | always NULL here (kept for column parity with the XSD/XML viewers) |
+| `query_options` | `data_query` (source `query`) and `xlsx_*` exports: the query options the request used, as sorted comma-joined **names** (`expand,filter,select`), never their values. Names: `filter`, `select`, `expand`, `orderby`, `search`, `skip` (also set by paging with Next when the service sends no next link), `extra` (custom parameters), `top` (only when ≠ the default 50), `nocount` (`$count` switched off; it is on by default). `''` = no options; NULL for next links, raw requests and rows before this column existed |
+| `auth_used` | `metadata_load` (ok, parse_error, HTTP refusals), `data_query`, `xlsx_*` exports: whether Basic Auth credentials were sent (the credentials themselves are never stored) |
+| `csdl_format` | `metadata_load` (ok): `xml` or `json` — the CSDL flavour of the document |
 | `app_version`, `received_at` | build version, server timestamp |
 
 Status semantics: `rejected` = size limit, SSRF guard or unknown/expired cache; `parse_error` = not a CSDL document; `error` (data_query) = the service answered with an error;
@@ -145,6 +148,11 @@ FROM usage_event WHERE event_type='metadata_load' GROUP BY 1,2,3 ORDER BY 1,2,4 
 -- Data explorer outcome
 SELECT source, status, count(*), round(avg(element_count)) avg_rows, round(avg(duration_ms)) avg_ms
 FROM usage_event WHERE event_type='data_query' GROUP BY 1,2 ORDER BY 3 DESC;
+
+-- Which query options are used, how often with credentials, CSDL XML vs JSON
+SELECT query_options, count(*) FROM usage_event WHERE event_type='data_query' AND query_options IS NOT NULL GROUP BY 1 ORDER BY 2 DESC;
+SELECT event_type, auth_used, count(*) FROM usage_event WHERE auth_used IS NOT NULL GROUP BY 1,2 ORDER BY 1,2;
+SELECT csdl_format, count(*) FROM usage_event WHERE event_type='metadata_load' AND status='ok' GROUP BY 1;
 
 -- Which files / schemas
 SELECT schema_name, odata_version, count(*) FROM usage_event WHERE event_type='metadata_load' GROUP BY 1,2 ORDER BY 3 DESC LIMIT 25;

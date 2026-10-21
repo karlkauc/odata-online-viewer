@@ -115,6 +115,16 @@ def test_text_load(client: TestClient, recorder: ListRecorder) -> None:
     assert (ev.event_type, ev.source, ev.status, ev.schema_name) == ("metadata_load", "text", "ok", "nw.xml")
     assert ev.element_count == 26 and ev.odata_version == "4.0"
     assert ev.target_namespace == "NorthwindModel"
+    assert ev.csdl_format == "xml" and ev.auth_used is False
+    assert ev.query_options is None
+
+
+def test_json_csdl_load_records_the_format(client: TestClient, recorder: ListRecorder) -> None:
+    from tests.test_csdl_parser import CSDL_JSON
+
+    r = client.post("/api/metadata/text", json={"content": json.dumps(CSDL_JSON), "filename": "trip.json"})
+    assert r.status_code == 200, r.text
+    assert recorder.events[-1].csdl_format == "json"
 
 
 def test_upload_load_and_source_round_trip(client: TestClient) -> None:
@@ -203,6 +213,7 @@ def test_url_load_with_credentials_sends_basic_auth_but_never_logs_it(
     assert fetch.calls[0][1]["Authorization"] == "Basic ZXhjZWxfZGVtbzpzM2NyZXQ="
     dumped = json.dumps([asdict(e) for e in recorder.events]) + r.text
     assert "s3cret" not in dumped and "ZXhjZWxfZGVtbzpzM2NyZXQ" not in dumped
+    assert recorder.events[-1].auth_used is True and recorder.events[-1].csdl_format == "xml"
 
 
 def test_url_load_with_credentials_refuses_a_redirect_to_another_host(
@@ -233,6 +244,7 @@ def test_url_load_401_is_reported_as_auth_required(
     assert "requires authentication" in r.json()["detail"]
     ev = recorder.events[-1]
     assert ev.status == "rejected" and ev.status_code == 401
+    assert ev.auth_used is False
 
 
 def test_url_load_security_error_is_400(client: TestClient, fetch: FakeFetch) -> None:
@@ -381,6 +393,8 @@ def test_data_query_v4(client: TestClient, fetch: FakeFetch, recorder: ListRecor
     assert (ev.event_type, ev.source, ev.status, ev.element_count) == ("data_query", "query", "ok", 2)
     assert ev.schema_name == "https://services.odata.org/V4/Northwind/Northwind.svc/"
     assert ev.target_namespace == "Products"
+    # top=2 differs from the default 50; $count is on by default and does not count.
+    assert ev.query_options == "select,top" and ev.auth_used is True
     assert "dTpw" not in json.dumps([asdict(e) for e in recorder.events])
 
 
@@ -428,6 +442,7 @@ def test_data_query_upstream_error(client: TestClient, fetch: FakeFetch, recorde
     assert r.status_code == 502
     assert "HTTP 400" in r.json()["detail"]
     assert recorder.events[-1].status == "error" and recorder.events[-1].status_code == 400
+    assert recorder.events[-1].query_options == "filter" and recorder.events[-1].auth_used is False
 
 
 def test_data_query_without_service_root(client: TestClient) -> None:
@@ -503,6 +518,7 @@ def test_data_export_page(client: TestClient, fetch: FakeFetch, recorder: ListRe
     assert rows == [("ProductID", "UnitPrice"), (1, 18)]
     ev = recorder.events[-1]
     assert (ev.event_type, ev.source, ev.element_count, ev.target_namespace) == ("export", "xlsx_page", 1, "Products")
+    assert ev.query_options == "" and ev.auth_used is False
 
 
 def test_data_export_page_needs_rows(client: TestClient, fetch: FakeFetch) -> None:
@@ -541,6 +557,7 @@ def test_data_export_all(client: TestClient, fetch: FakeFetch, recorder: ListRec
     assert all(h["Authorization"] == "Basic dTpw" for _, h in fetch.calls[-2:])
     assert "dTpw" not in json.dumps([asdict(e) for e in recorder.events])
     assert recorder.events[-1].source == "xlsx_all"
+    assert recorder.events[-1].query_options == "select" and recorder.events[-1].auth_used is True
 
 
 def test_data_export_all_upstream_error(client: TestClient, fetch: FakeFetch, recorder: ListRecorder) -> None:
@@ -554,3 +571,52 @@ def test_data_export_all_upstream_error(client: TestClient, fetch: FakeFetch, re
 def test_data_export_unknown_metadata(client: TestClient) -> None:
     r = client.post("/api/data/export", json={"metadata_id": "0" * 32, "entity_set": "Products", "scope": "all"})
     assert r.status_code == 404
+
+
+def test_data_query_next_link_and_raw_record_no_options(
+    client: TestClient, fetch: FakeFetch, recorder: ListRecorder
+) -> None:
+    metadata_id = _loaded_v4(client, fetch)
+    root = "https://services.odata.org/V4/Northwind/Northwind.svc/"
+    fetch.responses[f"{root}Products"] = FetchedResource(
+        url="…", content=json.dumps({"value": [{"ProductID": 1}]}).encode(), content_type="application/json"
+    )
+    r = client.post(
+        "/api/data/query",
+        json={
+            "metadata_id": metadata_id,
+            "entity_set": "Products",
+            "next_link": f"{root}Products?$skiptoken=1",
+            "options": {"filter": "x"},
+        },
+    )
+    assert r.status_code == 200, r.text
+    ev = recorder.events[-1]
+    assert ev.source == "next" and ev.query_options is None and ev.auth_used is False
+    r = client.post(
+        "/api/data/raw",
+        json={"metadata_id": metadata_id, "path_and_query": "Products", "auth": {"username": "u"}},
+    )
+    assert r.status_code == 200, r.text
+    ev = recorder.events[-1]
+    assert ev.source == "raw" and ev.query_options is None and ev.auth_used is True
+
+
+def test_query_option_names() -> None:
+    from app.api.data import query_option_names
+    from app.odata.data_client import QueryOptions
+
+    assert query_option_names(QueryOptions()) == ""
+    assert query_option_names(QueryOptions(top=50, count=True, skip=0, filter="  ", select=[" "])) == ""
+    everything = QueryOptions(
+        top=10,
+        skip=20,
+        filter="a eq 1",
+        select=["A"],
+        orderby="A desc",
+        expand="B",
+        search="x",
+        count=False,
+        extra="p=1",
+    )
+    assert query_option_names(everything) == "expand,extra,filter,nocount,orderby,search,select,skip,top"

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from datetime import date
+from pathlib import Path
 
 from app.usage.events import (
     COLUMNS,
@@ -142,6 +144,21 @@ class TestRow:
         assert row[COLUMNS.index("event_type")] == "page_view"
         assert row[COLUMNS.index("path")] == "/"
         assert INSERT_SQL.count("%s") == len(COLUMNS)
+
+
+DDL = (Path(__file__).resolve().parent.parent / "sql" / "usage_stats.sql").read_text()
+
+
+def test_ddl_matches_usage_event_and_insert() -> None:
+    """The insert names every column: each one must exist in a fresh table and in the migration."""
+    create = re.search(r"CREATE TABLE IF NOT EXISTS usage_event \((.*?)\n\);", DDL, re.S)
+    assert create is not None
+    table_columns = [m.group(1) for m in re.finditer(r"^\s{2}(\w+)\s", create.group(1), re.M)]
+    assert table_columns == ["event_id", "received_at", *COLUMNS]
+    assert INSERT_SQL.startswith(f"INSERT INTO usage_event ({', '.join(COLUMNS)}) VALUES")
+    added = set(re.findall(r"ADD COLUMN IF NOT EXISTS (\w+)", DDL))
+    assert {"query_options", "auth_used", "csdl_format"} <= added
+    assert UsageEvent.__dataclass_fields__["auth_used"].type == "bool | None"
 
 
 def test_utm_fields_keep_only_short_slugs() -> None:
