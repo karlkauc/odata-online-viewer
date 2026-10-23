@@ -47,7 +47,7 @@ def test_sister_redirects_carry_utm_source() -> None:
     assert client.get("/go/xml-viewer").headers["location"].startswith("https://www.xml-viewer.online/?utm_source=")
     tpt = client.get("/go/tpt-converter")
     assert tpt.status_code == 302
-    assert tpt.headers["location"] == "https://converter.status20.net/?utm_source=odata-viewer&utm_medium=sister"
+    assert tpt.headers["location"] == "https://www.fund-data-converter.eu/?utm_source=odata-viewer&utm_medium=sister"
     # Our own entry (FamilyFooter is identical on all sites) needs no campaign tag.
     assert client.get("/go/odata-viewer").headers["location"] == "https://www.odata-viewer.online/"
 
