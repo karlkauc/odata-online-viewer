@@ -93,6 +93,7 @@ setup are described in **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
 
 - [XSD Online Viewer](https://www.xsd-viewer.online) — visualise XML schemas.
 - [XML Online Viewer](https://www.xml-viewer.online) — read XML and validate it against an XSD.
+- [JdbcOdata](https://github.com/karlkauc/JdbcOdata) — publish SQL queries as OData feeds for Excel and Power BI.
 
 ## License
 
